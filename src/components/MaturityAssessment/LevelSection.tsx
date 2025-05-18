@@ -29,8 +29,9 @@ interface LevelSectionProps {
   title: string;
   questions: Question[];
   answers: Answer[];
-  updateQuestionAnswer: (questionId: number, option: string, score: number) => void;
+  updateQuestionAnswer: (questionId: number, option: string) => void;
   updateQuestionDetails: (questionId: number, field: string, value: string) => void;
+  hideScores?: boolean;
 }
 
 const LevelSection: React.FC<LevelSectionProps> = ({
@@ -39,7 +40,8 @@ const LevelSection: React.FC<LevelSectionProps> = ({
   questions,
   answers,
   updateQuestionAnswer,
-  updateQuestionDetails
+  updateQuestionDetails,
+  hideScores = false
 }) => {
   // Find answer by question ID
   const getAnswerByQuestionId = (questionId: number) => {
@@ -52,24 +54,10 @@ const LevelSection: React.FC<LevelSectionProps> = ({
     };
   };
 
-  // Função para converter pontuação em status de "atende ao requisito"
+  // Function to convert score to meets requirement status
   const scoreToMeetsRequirement = (score: number | undefined): boolean | null => {
     if (score === undefined) return null;
     return score > 0;
-  };
-
-  // Função para processar a seleção de opção
-  const handleOptionChange = (questionId: number, option: string) => {
-    let score: number;
-    switch (option) {
-      case 'a': score = 10; break;
-      case 'b': score = 7; break;
-      case 'c': score = 4; break;
-      case 'd': score = 2; break;
-      case 'e': score = 0; break;
-      default: score = 0;
-    }
-    updateQuestionAnswer(questionId, option, score);
   };
 
   return (
@@ -92,42 +80,43 @@ const LevelSection: React.FC<LevelSectionProps> = ({
                 </h3>
                 <RadioGroup 
                   value={answer.selectedOption}
-                  onValueChange={(value) => handleOptionChange(question.id, value)}
+                  onValueChange={(value) => updateQuestionAnswer(question.id, value)}
                   className="flex flex-col space-y-2"
+                  required
                 >
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="a" id={`q${question.id}-a`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-a`} className="flex-1">
                       <span className="font-medium">a)</span> Cenário de excelência em implementação há mais de um ano.
-                      <span className="text-xs ml-1 text-blue-600">(10 pontos)</span>
+                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(10 pontos)</span>}
                     </Label>
                   </div>
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="b" id={`q${question.id}-b`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-b`} className="flex-1">
                       <span className="font-medium">b)</span> A situação existente é levemente inferior ao apresentado no item A.
-                      <span className="text-xs ml-1 text-blue-600">(7 pontos)</span>
+                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(7 pontos)</span>}
                     </Label>
                   </div>
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="c" id={`q${question.id}-c`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-c`} className="flex-1">
                       <span className="font-medium">c)</span> A situação existente é significativamente inferior ao apresentado no item A.
-                      <span className="text-xs ml-1 text-blue-600">(4 pontos)</span>
+                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(4 pontos)</span>}
                     </Label>
                   </div>
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="d" id={`q${question.id}-d`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-d`} className="flex-1">
                       <span className="font-medium">d)</span> Esforços foram iniciados neste sentido.
-                      <span className="text-xs ml-1 text-blue-600">(2 pontos)</span>
+                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(2 pontos)</span>}
                     </Label>
                   </div>
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="e" id={`q${question.id}-e`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-e`} className="flex-1">
                       <span className="font-medium">e)</span> Nenhum esforço foi iniciado neste sentido.
-                      <span className="text-xs ml-1 text-blue-600">(0 pontos)</span>
+                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(0 pontos)</span>}
                     </Label>
                   </div>
                 </RadioGroup>
@@ -144,6 +133,7 @@ const LevelSection: React.FC<LevelSectionProps> = ({
                           placeholder="Digite sua resposta aqui..."
                           value={answer.details[`detail${idx}`] || ''}
                           onChange={(e) => updateQuestionDetails(question.id, `detail${idx}`, e.target.value)}
+                          required
                         />
                       </div>
                     ))}

@@ -9,11 +9,10 @@ import { levelQuestions } from './questions';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthProvider';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { X, Save, History } from 'lucide-react';
+import ResponseHistoryModal from './ResponseHistoryModal';
+import { v4 as uuidv4 } from 'uuid';
 
 // Define assessment data structure
 export interface AssessmentData {
@@ -22,6 +21,7 @@ export interface AssessmentData {
     isPharmaceutical: boolean | null;
     pharmaceuticalType: string;
     companySize: string;
+    state: string;
   };
   levels: {
     [key: number]: {
@@ -42,12 +42,11 @@ export interface AssessmentData {
   totalPoints: number;
   overallMaturity: number;
   assessmentId?: string;
+  sessionId?: string;
 }
 
 const AssessmentForm = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const isDesktop = !useIsMobile(); // Using negation of useIsMobile instead of useMediaQuery
   const [activeTab, setActiveTab] = useState("respondent");
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
     respondent: {
@@ -55,6 +54,7 @@ const AssessmentForm = () => {
       isPharmaceutical: null,
       pharmaceuticalType: "",
       companySize: "",
+      state: "",
     },
     levels: {
       2: { questions: [] },
@@ -69,18 +69,20 @@ const AssessmentForm = () => {
       5: 0
     },
     totalPoints: 0,
-    overallMaturity: 0
+    overallMaturity: 0,
+    sessionId: localStorage.getItem('assessment_session_id') || uuidv4()
   });
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [openLoginDialog, setOpenLoginDialog] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [isAssessmentSaved, setIsAssessmentSaved] = useState(false);
 
-  // Verifica se o usuário está autenticado e redireciona para login se não estiver
+  // Save session ID to localStorage when it's generated
   useEffect(() => {
-    if (!user && !openLoginDialog) {
-      setOpenLoginDialog(true);
+    if (assessmentData.sessionId && !localStorage.getItem('assessment_session_id')) {
+      localStorage.setItem('assessment_session_id', assessmentData.sessionId);
     }
-  }, [user]);
+  }, [assessmentData.sessionId]);
 
   // Initialize questions from the predefined data
   useEffect(() => {
@@ -111,11 +113,12 @@ const AssessmentForm = () => {
       let answered = 0;
       let total = 0;
       
-      // Count respondent section (3 questions)
+      // Count respondent section (4 questions now with state)
       if (assessmentData.respondent.hasProjectExperience !== null) answered++;
       if (assessmentData.respondent.isPharmaceutical !== null) answered++;
       if (assessmentData.respondent.companySize) answered++;
-      total += 3;
+      if (assessmentData.respondent.state) answered++;
+      total += 4;
       
       // Count questions from each level
       for (let level = 2; level <= 5; level++) {
@@ -153,7 +156,7 @@ const AssessmentForm = () => {
       // Calculate total points
       const totalPoints = scores[2] + scores[3] + scores[4] + scores[5];
       
-      // Calculate overall maturity using the new formula: (100 + total_points) / 100
+      // Calculate overall maturity using the formula: (100 + total_points) / 100
       const overallMaturity = (100 + totalPoints) / 100;
       
       return {
@@ -173,14 +176,56 @@ const AssessmentForm = () => {
     }));
   }, [assessmentData.levels]);
 
-  // Redirecionar para a página de consentimento ou de login se o usuário não estiver autenticado
-  const handleAuthRequired = () => {
-    navigate('/');
-    setOpenLoginDialog(false);
-  };
-
   // Handle tab change
   const handleTabChange = (value: string) => {
+    // Only allow changing to results tab if assessment is saved
+    if (value === "results" && !isAssessmentSaved) {
+      toast({
+        variant: "destructive",
+        title: "Ação não permitida",
+        description: "Você precisa salvar a avaliação antes de ver os resultados."
+      });
+      return;
+    }
+    
+    // Check if current section is complete before advancing
+    if (activeTab === "respondent" && value !== "respondent") {
+      const { hasProjectExperience, isPharmaceutical, companySize, state } = assessmentData.respondent;
+      if (hasProjectExperience === null || isPharmaceutical === null || !companySize || !state) {
+        toast({
+          variant: "destructive", 
+          title: "Campos obrigatórios",
+          description: "Por favor, preencha todos os campos da seção de classificação."
+        });
+        return;
+      }
+    }
+    
+    // Check if level questions are all answered before advancing to next level
+    const levels = {
+      "level2": 2,
+      "level3": 3,
+      "level4": 4,
+      "level5": 5
+    };
+    
+    const currentLevel = levels[activeTab as keyof typeof levels];
+    const nextLevel = levels[value as keyof typeof levels];
+    
+    if (currentLevel && nextLevel && nextLevel > currentLevel) {
+      const questions = assessmentData.levels[currentLevel].questions;
+      const allAnswered = questions.every(q => q.selectedOption !== undefined);
+      
+      if (!allAnswered) {
+        toast({
+          variant: "destructive", 
+          title: "Respostas incompletas",
+          description: `Por favor, responda todas as questões do Nível ${currentLevel} antes de avançar.`
+        });
+        return;
+      }
+    }
+    
     setActiveTab(value);
   };
 
@@ -193,10 +238,24 @@ const AssessmentForm = () => {
         [field]: value
       }
     }));
+    
+    // Save individual response to database
+    saveIndividualResponse('respondent', field as string, value);
   };
 
-  // Handle question answer updates with options (a, b, c, d, e) and scores
-  const updateQuestionAnswer = (level: number, questionId: number, option: string, score: number) => {
+  // Handle question answer updates with options (a, b, c, d, e) and scores (now hidden from user)
+  const updateQuestionAnswer = (level: number, questionId: number, option: string) => {
+    // Map options to scores (hidden from user)
+    const scoreMap: {[key: string]: number} = {
+      'a': 10,
+      'b': 7,
+      'c': 4,
+      'd': 2,
+      'e': 0
+    };
+    
+    const score = scoreMap[option] || 0;
+    
     setAssessmentData(prev => {
       const updatedLevels = { ...prev.levels };
       
@@ -216,6 +275,9 @@ const AssessmentForm = () => {
         levels: updatedLevels
       };
     });
+    
+    // Save individual response to database
+    saveIndividualResponse('question', `${level}_${questionId}`, { option, score });
   };
 
   // Handle question details updates
@@ -240,30 +302,39 @@ const AssessmentForm = () => {
         levels: updatedLevels
       };
     });
+    
+    // Save individual response to database
+    saveIndividualResponse('detail', `${level}_${questionId}_${field}`, value);
   };
 
-  // Função para salvar a avaliação no Supabase
-  const saveAssessment = async () => {
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao salvar",
-        description: "Você precisa estar logado para salvar a avaliação."
+  // Save individual responses to database as they're made
+  const saveIndividualResponse = async (type: string, key: string, value: any) => {
+    try {
+      await supabase.from('assessment_responses').upsert({
+        session_id: assessmentData.sessionId,
+        response_type: type,
+        response_key: key,
+        response_value: JSON.stringify(value),
+        created_at: new Date().toISOString()
       });
-      setOpenLoginDialog(true);
-      return;
+    } catch (error) {
+      console.error("Erro ao salvar resposta individual:", error);
     }
+  };
 
+  // Função para salvar a avaliação completa no Supabase
+  const saveAssessment = async () => {
     try {
       setSaving(true);
 
       // 1. Salvar a avaliação principal
       const assessmentResponse = await supabase.from('maturity_assessments').insert({
-        respondent_id: user.id,
+        session_id: assessmentData.sessionId,
         has_project_experience: assessmentData.respondent.hasProjectExperience,
         is_pharmaceutical: assessmentData.respondent.isPharmaceutical,
         pharmaceutical_type: assessmentData.respondent.pharmaceuticalType,
         company_size: assessmentData.respondent.companySize,
+        state: assessmentData.respondent.state,
         level_2_score: Math.round(assessmentData.scores[2]),
         level_3_score: Math.round(assessmentData.scores[3]),
         level_4_score: Math.round(assessmentData.scores[4]),
@@ -277,12 +348,13 @@ const AssessmentForm = () => {
 
       const assessmentId = assessmentResponse.data.id;
 
-      // 2. Salvar as respostas para cada nível
+      // 2. Salvar as respostas para cada nível de forma consolidada
       for (let level = 2; level <= 5; level++) {
         for (const question of assessmentData.levels[level].questions) {
           if (question.selectedOption) {
             const responseInsert = await supabase.from('assessment_responses').insert({
               assessment_id: assessmentId,
+              session_id: assessmentData.sessionId,
               level_number: level,
               question_id: question.id,
               meets_requirement: question.meetsRequirement,
@@ -306,10 +378,17 @@ const AssessmentForm = () => {
         assessmentId
       }));
 
+      // 4. Mark assessment as saved to allow viewing results
+      setIsAssessmentSaved(true);
+
       toast({
         title: "Avaliação salva com sucesso!",
         description: "Suas respostas foram salvas no banco de dados."
       });
+      
+      // 5. Move to results tab now that assessment is saved
+      setActiveTab("results");
+      
     } catch (error: any) {
       console.error("Erro ao salvar avaliação:", error);
       toast({
@@ -322,52 +401,67 @@ const AssessmentForm = () => {
     }
   };
 
-  // Renderiza o diálogo de login
-  const LoginDialogComponent = () => {
-    if (isDesktop) {
-      return (
-        <Dialog open={openLoginDialog} onOpenChange={setOpenLoginDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Autenticação Necessária</DialogTitle>
-              <DialogDescription>
-                Para continuar com a avaliação de maturidade, é necessário estar autenticado.
-                Por favor, faça login para continuar.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button onClick={handleAuthRequired}>Entendi</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+  // Handle the exit button click
+  const handleExit = () => {
+    if (window.confirm("Tem certeza que deseja sair? Suas respostas não salvas serão perdidas.")) {
+      navigate('/');
+    }
+  };
+
+  // Check if form is complete to enable save button
+  const isFormComplete = () => {
+    // Check respondent data
+    const respondentComplete = 
+      assessmentData.respondent.hasProjectExperience !== null && 
+      assessmentData.respondent.isPharmaceutical !== null && 
+      !!assessmentData.respondent.companySize &&
+      !!assessmentData.respondent.state;
+      
+    if (!respondentComplete) return false;
+    
+    // Check all levels have all questions answered
+    for (let level = 2; level <= 5; level++) {
+      const allQuestionsAnswered = assessmentData.levels[level].questions.every(
+        q => q.selectedOption !== undefined
       );
+      if (!allQuestionsAnswered) return false;
     }
     
-    return (
-      <Drawer open={openLoginDialog} onOpenChange={setOpenLoginDialog}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Autenticação Necessária</DrawerTitle>
-            <DrawerDescription>
-              Para continuar com a avaliação de maturidade, é necessário estar autenticado.
-              Por favor, faça login para continuar.
-            </DrawerDescription>
-          </DrawerHeader>
-          <DrawerFooter>
-            <Button onClick={handleAuthRequired}>Entendi</Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    );
+    return true;
   };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <LoginDialogComponent />
-
-      <h1 className="text-3xl font-bold text-center mb-6">
-        Autoavaliação de Maturidade em Gerenciamento de Projetos (MMGP)
-      </h1>
+      <ResponseHistoryModal 
+        open={showHistory} 
+        onClose={() => setShowHistory(false)}
+        sessionId={assessmentData.sessionId || ''}
+      />
+      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">
+          Autoavaliação de Maturidade em Gerenciamento de Projetos (MMGP)
+        </h1>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => setShowHistory(true)}
+            title="Ver histórico de respostas"
+          >
+            <History className="h-5 w-5" />
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="icon" 
+            onClick={handleExit}
+            title="Sair da avaliação"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+      
       <p className="text-center text-gray-600 mb-8">
         Este formulário avalia o nível de maturidade em gerenciamento de projetos da sua organização com base no modelo Prado-MMGP.
       </p>
@@ -382,7 +476,7 @@ const AssessmentForm = () => {
             <TabsTrigger value="level3" className="font-medium">Nível 3</TabsTrigger>
             <TabsTrigger value="level4" className="font-medium">Nível 4</TabsTrigger>
             <TabsTrigger value="level5" className="font-medium">Nível 5</TabsTrigger>
-            <TabsTrigger value="results" className="font-medium">Resultados</TabsTrigger>
+            <TabsTrigger value="results" className="font-medium" disabled={!isAssessmentSaved}>Resultados</TabsTrigger>
           </TabsList>
 
           <TabsContent value="respondent" className="p-6">
@@ -391,12 +485,16 @@ const AssessmentForm = () => {
               updateRespondentData={updateRespondentData}
             />
             <div className="mt-8 flex justify-end">
-              <button 
+              <Button 
                 onClick={() => setActiveTab("level2")} 
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+                variant="default"
+                disabled={!assessmentData.respondent.hasProjectExperience || 
+                  assessmentData.respondent.isPharmaceutical === null || 
+                  !assessmentData.respondent.companySize ||
+                  !assessmentData.respondent.state}
               >
                 Próximo
-              </button>
+              </Button>
             </div>
           </TabsContent>
 
@@ -406,22 +504,24 @@ const AssessmentForm = () => {
               title="Nível 2 - Conhecido (Iniciativas Isoladas)"
               questions={levelQuestions[2]}
               answers={assessmentData.levels[2].questions}
-              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(2, questionId, option, score)}
+              updateQuestionAnswer={(questionId, option) => updateQuestionAnswer(2, questionId, option)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(2, questionId, field, value)}
+              hideScores={true}
             />
             <div className="mt-8 flex justify-between">
-              <button 
+              <Button 
                 onClick={() => setActiveTab("respondent")} 
-                className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
+                variant="outline"
               >
                 Anterior
-              </button>
-              <button 
-                onClick={() => setActiveTab("level3")} 
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+              </Button>
+              <Button 
+                onClick={() => setActiveTab("level3")}
+                variant="default"
+                disabled={!assessmentData.levels[2].questions.every(q => q.selectedOption !== undefined)}
               >
                 Próximo
-              </button>
+              </Button>
             </div>
           </TabsContent>
 
@@ -431,22 +531,24 @@ const AssessmentForm = () => {
               title="Nível 3 - Padronizado"
               questions={levelQuestions[3]}
               answers={assessmentData.levels[3].questions}
-              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(3, questionId, option, score)}
+              updateQuestionAnswer={(questionId, option) => updateQuestionAnswer(3, questionId, option)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(3, questionId, field, value)}
+              hideScores={true}
             />
             <div className="mt-8 flex justify-between">
-              <button 
+              <Button 
                 onClick={() => setActiveTab("level2")} 
-                className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
+                variant="outline"
               >
                 Anterior
-              </button>
-              <button 
-                onClick={() => setActiveTab("level4")} 
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+              </Button>
+              <Button 
+                onClick={() => setActiveTab("level4")}
+                variant="default" 
+                disabled={!assessmentData.levels[3].questions.every(q => q.selectedOption !== undefined)}
               >
                 Próximo
-              </button>
+              </Button>
             </div>
           </TabsContent>
 
@@ -456,22 +558,24 @@ const AssessmentForm = () => {
               title="Nível 4 - Gerenciado"
               questions={levelQuestions[4]}
               answers={assessmentData.levels[4].questions}
-              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(4, questionId, option, score)}
+              updateQuestionAnswer={(questionId, option) => updateQuestionAnswer(4, questionId, option)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(4, questionId, field, value)}
+              hideScores={true}
             />
             <div className="mt-8 flex justify-between">
-              <button 
-                onClick={() => setActiveTab("level3")} 
-                className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
+              <Button 
+                onClick={() => setActiveTab("level3")}
+                variant="outline" 
               >
                 Anterior
-              </button>
-              <button 
-                onClick={() => setActiveTab("level5")} 
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+              </Button>
+              <Button 
+                onClick={() => setActiveTab("level5")}
+                variant="default" 
+                disabled={!assessmentData.levels[4].questions.every(q => q.selectedOption !== undefined)}
               >
                 Próximo
-              </button>
+              </Button>
             </div>
           </TabsContent>
 
@@ -481,22 +585,29 @@ const AssessmentForm = () => {
               title="Nível 5 - Otimizado"
               questions={levelQuestions[5]}
               answers={assessmentData.levels[5].questions}
-              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(5, questionId, option, score)}
+              updateQuestionAnswer={(questionId, option) => updateQuestionAnswer(5, questionId, option)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(5, questionId, field, value)}
+              hideScores={true}
             />
             <div className="mt-8 flex justify-between">
-              <button 
-                onClick={() => setActiveTab("level4")} 
-                className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
+              <Button 
+                onClick={() => setActiveTab("level4")}
+                variant="outline"
               >
                 Anterior
-              </button>
-              <button 
-                onClick={() => setActiveTab("results")} 
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+              </Button>
+              <Button
+                onClick={saveAssessment}
+                disabled={saving || !isFormComplete()}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
-                Ver Resultados
-              </button>
+                {saving ? 'Salvando...' : (
+                  <div className="flex items-center gap-2">
+                    <Save className="h-4 w-4" />
+                    <span>Salvar Avaliação</span>
+                  </div>
+                )}
+              </Button>
             </div>
           </TabsContent>
 
@@ -507,18 +618,17 @@ const AssessmentForm = () => {
               overallMaturity={assessmentData.overallMaturity}
             />
             <div className="mt-8 flex justify-between">
-              <button 
-                onClick={() => setActiveTab("level5")} 
-                className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
+              <Button 
+                onClick={() => setActiveTab("level5")}
+                variant="outline"
               >
                 Anterior
-              </button>
+              </Button>
               <Button
-                onClick={saveAssessment}
-                disabled={saving}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleExit}
+                variant="default"
               >
-                {saving ? 'Salvando...' : 'Salvar Avaliação'}
+                Finalizar
               </Button>
             </div>
           </TabsContent>

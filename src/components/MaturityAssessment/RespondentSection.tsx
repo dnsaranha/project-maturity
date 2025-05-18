@@ -17,6 +17,7 @@ interface RespondentSectionProps {
     isPharmaceutical: boolean | null;
     pharmaceuticalType: string;
     companySize: string;
+    state: string;
   };
   updateRespondentData: (field: string, value: any) => void;
 }
@@ -35,9 +36,39 @@ const pharmaceuticalTypes = [
 ];
 
 const companySizes = [
-  "Pequena",
-  "Média",
-  "Grande"
+  { value: "Pequena", description: "Até 99 funcionários" },
+  { value: "Média", description: "De 100 a 499 funcionários" },
+  { value: "Grande", description: "500 ou mais funcionários" }
+];
+
+const brazilianStates = [
+  { value: "AC", label: "Acre" },
+  { value: "AL", label: "Alagoas" },
+  { value: "AP", label: "Amapá" },
+  { value: "AM", label: "Amazonas" },
+  { value: "BA", label: "Bahia" },
+  { value: "CE", label: "Ceará" },
+  { value: "DF", label: "Distrito Federal" },
+  { value: "ES", label: "Espírito Santo" },
+  { value: "GO", label: "Goiás" },
+  { value: "MA", label: "Maranhão" },
+  { value: "MT", label: "Mato Grosso" },
+  { value: "MS", label: "Mato Grosso do Sul" },
+  { value: "MG", label: "Minas Gerais" },
+  { value: "PA", label: "Pará" },
+  { value: "PB", label: "Paraíba" },
+  { value: "PR", label: "Paraná" },
+  { value: "PE", label: "Pernambuco" },
+  { value: "PI", label: "Piauí" },
+  { value: "RJ", label: "Rio de Janeiro" },
+  { value: "RN", label: "Rio Grande do Norte" },
+  { value: "RS", label: "Rio Grande do Sul" },
+  { value: "RO", label: "Rondônia" },
+  { value: "RR", label: "Roraima" },
+  { value: "SC", label: "Santa Catarina" },
+  { value: "SP", label: "São Paulo" },
+  { value: "SE", label: "Sergipe" },
+  { value: "TO", label: "Tocantins" }
 ];
 
 const RespondentSection: React.FC<RespondentSectionProps> = ({ respondentData, updateRespondentData }) => {
@@ -59,6 +90,7 @@ const RespondentSection: React.FC<RespondentSectionProps> = ({ respondentData, u
               : respondentData.hasProjectExperience ? "yes" : "no"} 
             onValueChange={(value) => updateRespondentData('hasProjectExperience', value === "yes")}
             className="flex space-x-4"
+            required
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="yes" id="experience-yes" />
@@ -81,6 +113,7 @@ const RespondentSection: React.FC<RespondentSectionProps> = ({ respondentData, u
               : respondentData.isPharmaceutical ? "yes" : "no"}
             onValueChange={(value) => updateRespondentData('isPharmaceutical', value === "yes")}
             className="flex space-x-4"
+            required
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="yes" id="pharma-yes" />
@@ -100,6 +133,7 @@ const RespondentSection: React.FC<RespondentSectionProps> = ({ respondentData, u
               <Select 
                 value={respondentData.pharmaceuticalType || ""} 
                 onValueChange={(value) => updateRespondentData('pharmaceuticalType', value)}
+                required={respondentData.isPharmaceutical}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione o tipo de indústria" />
@@ -123,14 +157,37 @@ const RespondentSection: React.FC<RespondentSectionProps> = ({ respondentData, u
           <Select 
             value={respondentData.companySize || ""} 
             onValueChange={(value) => updateRespondentData('companySize', value)}
+            required
           >
             <SelectTrigger className="w-full max-w-xs">
               <SelectValue placeholder="Selecione o porte da empresa" />
             </SelectTrigger>
             <SelectContent>
               {companySizes.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {size}
+                <SelectItem key={size.value} value={size.value}>
+                  {size.value} ({size.description})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-base font-medium">
+            D- Em qual estado está localizada a indústria?
+          </h3>
+          <Select 
+            value={respondentData.state || ""} 
+            onValueChange={(value) => updateRespondentData('state', value)}
+            required
+          >
+            <SelectTrigger className="w-full max-w-xs">
+              <SelectValue placeholder="Selecione o estado" />
+            </SelectTrigger>
+            <SelectContent>
+              {brazilianStates.map((state) => (
+                <SelectItem key={state.value} value={state.value}>
+                  {state.label} ({state.value})
                 </SelectItem>
               ))}
             </SelectContent>

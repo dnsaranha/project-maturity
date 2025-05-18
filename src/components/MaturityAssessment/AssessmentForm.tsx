@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RespondentSection from './RespondentSection';
@@ -13,7 +12,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import { useMediaQuery } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Define assessment data structure
 export interface AssessmentData {
@@ -44,7 +43,7 @@ export interface AssessmentData {
 const AssessmentForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isDesktop = !useIsMobile(); // Using negation of useIsMobile instead of useMediaQuery
   const [activeTab, setActiveTab] = useState("respondent");
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
     respondent: {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RespondentSection from './RespondentSection';
@@ -9,9 +10,9 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthProvider';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 // Define assessment data structure
@@ -27,6 +28,8 @@ export interface AssessmentData {
       questions: {
         id: number;
         meetsRequirement: boolean | null;
+        selectedOption?: string;
+        score?: number;
         details: {
           [key: string]: string;
         };
@@ -36,6 +39,7 @@ export interface AssessmentData {
   scores: {
     [key: number]: number;
   };
+  totalPoints: number;
   overallMaturity: number;
   assessmentId?: string;
 }
@@ -64,6 +68,7 @@ const AssessmentForm = () => {
       4: 0,
       5: 0
     },
+    totalPoints: 0,
     overallMaturity: 0
   });
   const [progress, setProgress] = useState(0);
@@ -87,6 +92,8 @@ const AssessmentForm = () => {
         questions: levelQuestions[level].map(q => ({
           id: q.id,
           meetsRequirement: null,
+          selectedOption: undefined,
+          score: undefined,
           details: {}
         }))
       };
@@ -113,7 +120,7 @@ const AssessmentForm = () => {
       // Count questions from each level
       for (let level = 2; level <= 5; level++) {
         assessmentData.levels[level].questions.forEach(q => {
-          if (q.meetsRequirement !== null) answered++;
+          if (q.selectedOption) answered++;
         });
         total += 10; // Each level has 10 questions
       }
@@ -132,32 +139,36 @@ const AssessmentForm = () => {
       // Calculate score for each level
       for (let level = 2; level <= 5; level++) {
         const levelQuestions = assessmentData.levels[level].questions;
-        const answeredQuestions = levelQuestions.filter(q => q.meetsRequirement !== null);
+        let levelTotal = 0;
         
-        if (answeredQuestions.length > 0) {
-          const metRequirements = levelQuestions.filter(q => q.meetsRequirement === true).length;
-          scores[level] = (metRequirements / 10) * 100; // Scale to percentage (0-100)
-        }
+        levelQuestions.forEach(q => {
+          if (q.score !== undefined) {
+            levelTotal += q.score;
+          }
+        });
+        
+        scores[level] = levelTotal;
       }
       
-      // Calculate overall maturity (weighted average)
-      let overallMaturity = 0;
-      if (Object.values(scores).some(score => score > 0)) {
-        const weightedSum = scores[2] * 0.2 + scores[3] * 0.3 + scores[4] * 0.3 + scores[5] * 0.2;
-        overallMaturity = weightedSum / 100 * 5; // Scale to 0-5
-      }
+      // Calculate total points
+      const totalPoints = scores[2] + scores[3] + scores[4] + scores[5];
+      
+      // Calculate overall maturity using the new formula: (100 + total_points) / 100
+      const overallMaturity = (100 + totalPoints) / 100;
       
       return {
         levelScores: scores,
-        overall: parseFloat(overallMaturity.toFixed(2))
+        totalPoints,
+        overall: overallMaturity
       };
     };
     
-    const { levelScores, overall } = calculateScores();
+    const { levelScores, totalPoints, overall } = calculateScores();
     
     setAssessmentData(prev => ({
       ...prev,
       scores: levelScores,
+      totalPoints,
       overallMaturity: overall
     }));
   }, [assessmentData.levels]);
@@ -184,8 +195,8 @@ const AssessmentForm = () => {
     }));
   };
 
-  // Handle question answer updates
-  const updateQuestionAnswer = (level: number, questionId: number, meetsRequirement: boolean) => {
+  // Handle question answer updates with options (a, b, c, d, e) and scores
+  const updateQuestionAnswer = (level: number, questionId: number, option: string, score: number) => {
     setAssessmentData(prev => {
       const updatedLevels = { ...prev.levels };
       
@@ -194,7 +205,9 @@ const AssessmentForm = () => {
       if (questionIndex !== -1) {
         updatedLevels[level].questions[questionIndex] = {
           ...updatedLevels[level].questions[questionIndex],
-          meetsRequirement
+          selectedOption: option,
+          score: score,
+          meetsRequirement: score > 0 // Se a pontuação for maior que 0, considera como atendido
         };
       }
       
@@ -267,13 +280,17 @@ const AssessmentForm = () => {
       // 2. Salvar as respostas para cada nível
       for (let level = 2; level <= 5; level++) {
         for (const question of assessmentData.levels[level].questions) {
-          if (question.meetsRequirement !== null) {
+          if (question.selectedOption) {
             const responseInsert = await supabase.from('assessment_responses').insert({
               assessment_id: assessmentId,
               level_number: level,
               question_id: question.id,
               meets_requirement: question.meetsRequirement,
-              details: question.details
+              details: {
+                ...question.details,
+                selectedOption: question.selectedOption,
+                score: question.score
+              }
             });
 
             if (responseInsert.error) {
@@ -389,7 +406,7 @@ const AssessmentForm = () => {
               title="Nível 2 - Conhecido (Iniciativas Isoladas)"
               questions={levelQuestions[2]}
               answers={assessmentData.levels[2].questions}
-              updateQuestionAnswer={(questionId, meets) => updateQuestionAnswer(2, questionId, meets)}
+              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(2, questionId, option, score)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(2, questionId, field, value)}
             />
             <div className="mt-8 flex justify-between">
@@ -414,7 +431,7 @@ const AssessmentForm = () => {
               title="Nível 3 - Padronizado"
               questions={levelQuestions[3]}
               answers={assessmentData.levels[3].questions}
-              updateQuestionAnswer={(questionId, meets) => updateQuestionAnswer(3, questionId, meets)}
+              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(3, questionId, option, score)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(3, questionId, field, value)}
             />
             <div className="mt-8 flex justify-between">
@@ -439,7 +456,7 @@ const AssessmentForm = () => {
               title="Nível 4 - Gerenciado"
               questions={levelQuestions[4]}
               answers={assessmentData.levels[4].questions}
-              updateQuestionAnswer={(questionId, meets) => updateQuestionAnswer(4, questionId, meets)}
+              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(4, questionId, option, score)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(4, questionId, field, value)}
             />
             <div className="mt-8 flex justify-between">
@@ -464,7 +481,7 @@ const AssessmentForm = () => {
               title="Nível 5 - Otimizado"
               questions={levelQuestions[5]}
               answers={assessmentData.levels[5].questions}
-              updateQuestionAnswer={(questionId, meets) => updateQuestionAnswer(5, questionId, meets)}
+              updateQuestionAnswer={(questionId, option, score) => updateQuestionAnswer(5, questionId, option, score)}
               updateQuestionDetails={(questionId, field, value) => updateQuestionDetails(5, questionId, field, value)}
             />
             <div className="mt-8 flex justify-between">
@@ -486,6 +503,7 @@ const AssessmentForm = () => {
           <TabsContent value="results" className="p-6">
             <ResultsSection 
               scores={assessmentData.scores}
+              totalPoints={assessmentData.totalPoints}
               overallMaturity={assessmentData.overallMaturity}
             />
             <div className="mt-8 flex justify-between">

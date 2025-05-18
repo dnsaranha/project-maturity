@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      assessment_responses: {
+        Row: {
+          assessment_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          level_number: number
+          meets_requirement: boolean | null
+          question_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          assessment_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          level_number: number
+          meets_requirement?: boolean | null
+          question_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          assessment_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          level_number?: number
+          meets_requirement?: boolean | null
+          question_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_responses_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "maturity_assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       backlog_items: {
         Row: {
           created_at: string
@@ -144,6 +185,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      maturity_assessments: {
+        Row: {
+          company_size: string | null
+          created_at: string | null
+          has_project_experience: boolean | null
+          id: string
+          is_pharmaceutical: boolean | null
+          level_2_score: number | null
+          level_3_score: number | null
+          level_4_score: number | null
+          level_5_score: number | null
+          overall_maturity: number | null
+          pharmaceutical_type: string | null
+          respondent_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_size?: string | null
+          created_at?: string | null
+          has_project_experience?: boolean | null
+          id?: string
+          is_pharmaceutical?: boolean | null
+          level_2_score?: number | null
+          level_3_score?: number | null
+          level_4_score?: number | null
+          level_5_score?: number | null
+          overall_maturity?: number | null
+          pharmaceutical_type?: string | null
+          respondent_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_size?: string | null
+          created_at?: string | null
+          has_project_experience?: boolean | null
+          id?: string
+          is_pharmaceutical?: boolean | null
+          level_2_score?: number | null
+          level_3_score?: number | null
+          level_4_score?: number | null
+          level_5_score?: number | null
+          overall_maturity?: number | null
+          pharmaceutical_type?: string | null
+          respondent_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       notifications: {
         Row: {

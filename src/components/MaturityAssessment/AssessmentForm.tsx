@@ -6,6 +6,14 @@ import LevelSection from './LevelSection';
 import ResultsSection from './ResultsSection';
 import ProgressBar from './ProgressBar';
 import { levelQuestions } from './questions';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthProvider';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { useMediaQuery } from '@/hooks/use-mobile';
 
 // Define assessment data structure
 export interface AssessmentData {
@@ -30,9 +38,13 @@ export interface AssessmentData {
     [key: number]: number;
   };
   overallMaturity: number;
+  assessmentId?: string;
 }
 
 const AssessmentForm = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const [activeTab, setActiveTab] = useState("respondent");
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
     respondent: {
@@ -56,6 +68,15 @@ const AssessmentForm = () => {
     overallMaturity: 0
   });
   const [progress, setProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [openLoginDialog, setOpenLoginDialog] = useState(false);
+
+  // Verifica se o usuário está autenticado e redireciona para login se não estiver
+  useEffect(() => {
+    if (!user && !openLoginDialog) {
+      setOpenLoginDialog(true);
+    }
+  }, [user]);
 
   // Initialize questions from the predefined data
   useEffect(() => {
@@ -142,6 +163,12 @@ const AssessmentForm = () => {
     }));
   }, [assessmentData.levels]);
 
+  // Redirecionar para a página de consentimento ou de login se o usuário não estiver autenticado
+  const handleAuthRequired = () => {
+    navigate('/');
+    setOpenLoginDialog(false);
+  };
+
   // Handle tab change
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -203,8 +230,125 @@ const AssessmentForm = () => {
     });
   };
 
+  // Função para salvar a avaliação no Supabase
+  const saveAssessment = async () => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: "Você precisa estar logado para salvar a avaliação."
+      });
+      setOpenLoginDialog(true);
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // 1. Salvar a avaliação principal
+      const assessmentResponse = await supabase.from('maturity_assessments').insert({
+        respondent_id: user.id,
+        has_project_experience: assessmentData.respondent.hasProjectExperience,
+        is_pharmaceutical: assessmentData.respondent.isPharmaceutical,
+        pharmaceutical_type: assessmentData.respondent.pharmaceuticalType,
+        company_size: assessmentData.respondent.companySize,
+        level_2_score: Math.round(assessmentData.scores[2]),
+        level_3_score: Math.round(assessmentData.scores[3]),
+        level_4_score: Math.round(assessmentData.scores[4]),
+        level_5_score: Math.round(assessmentData.scores[5]),
+        overall_maturity: assessmentData.overallMaturity
+      }).select().single();
+
+      if (assessmentResponse.error) {
+        throw assessmentResponse.error;
+      }
+
+      const assessmentId = assessmentResponse.data.id;
+
+      // 2. Salvar as respostas para cada nível
+      for (let level = 2; level <= 5; level++) {
+        for (const question of assessmentData.levels[level].questions) {
+          if (question.meetsRequirement !== null) {
+            const responseInsert = await supabase.from('assessment_responses').insert({
+              assessment_id: assessmentId,
+              level_number: level,
+              question_id: question.id,
+              meets_requirement: question.meetsRequirement,
+              details: question.details
+            });
+
+            if (responseInsert.error) {
+              throw responseInsert.error;
+            }
+          }
+        }
+      }
+
+      // 3. Atualizar o ID da avaliação no state
+      setAssessmentData(prev => ({
+        ...prev,
+        assessmentId
+      }));
+
+      toast({
+        title: "Avaliação salva com sucesso!",
+        description: "Suas respostas foram salvas no banco de dados."
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar avaliação:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: error.message || "Ocorreu um erro ao salvar a avaliação."
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Renderiza o diálogo de login
+  const LoginDialogComponent = () => {
+    if (isDesktop) {
+      return (
+        <Dialog open={openLoginDialog} onOpenChange={setOpenLoginDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Autenticação Necessária</DialogTitle>
+              <DialogDescription>
+                Para continuar com a avaliação de maturidade, é necessário estar autenticado.
+                Por favor, faça login para continuar.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={handleAuthRequired}>Entendi</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    
+    return (
+      <Drawer open={openLoginDialog} onOpenChange={setOpenLoginDialog}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Autenticação Necessária</DrawerTitle>
+            <DrawerDescription>
+              Para continuar com a avaliação de maturidade, é necessário estar autenticado.
+              Por favor, faça login para continuar.
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerFooter>
+            <Button onClick={handleAuthRequired}>Entendi</Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <LoginDialogComponent />
+
       <h1 className="text-3xl font-bold text-center mb-6">
         Autoavaliação de Maturidade em Gerenciamento de Projetos (MMGP)
       </h1>
@@ -345,13 +489,20 @@ const AssessmentForm = () => {
               scores={assessmentData.scores}
               overallMaturity={assessmentData.overallMaturity}
             />
-            <div className="mt-8 flex justify-start">
+            <div className="mt-8 flex justify-between">
               <button 
                 onClick={() => setActiveTab("level5")} 
                 className="bg-gray-200 text-gray-800 px-6 py-2 rounded hover:bg-gray-300 transition-colors"
               >
                 Anterior
               </button>
+              <Button
+                onClick={saveAssessment}
+                disabled={saving}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {saving ? 'Salvando...' : 'Salvar Avaliação'}
+              </Button>
             </div>
           </TabsContent>
         </Tabs>

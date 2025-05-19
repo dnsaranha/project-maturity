@@ -312,12 +312,19 @@ const AssessmentForm = () => {
   // Save individual responses to database as they're made
   const saveIndividualResponse = async (type: string, key: string, value: any) => {
     try {
+      // Create a details object to store the extra information
+      const details: any = {};
+      
+      // Add the response type and key to the details
+      details.response_type = type;
+      details.response_key = key;
+      details.response_value = JSON.stringify(value);
+      
       await supabase.from('assessment_responses').insert({
-        response_type: type,
-        response_key: key,
-        response_value: JSON.stringify(value),
         session_id: assessmentData.sessionId,
-        created_at: new Date().toISOString()
+        level_number: type === 'question' ? parseInt(key.split('_')[0]) : null,
+        question_id: type === 'question' ? parseInt(key.split('_')[1]) : null,
+        details: details
       });
     } catch (error) {
       console.error("Erro ao salvar resposta individual:", error);
@@ -354,17 +361,18 @@ const AssessmentForm = () => {
       for (let level = 2; level <= 5; level++) {
         for (const question of assessmentData.levels[level].questions) {
           if (question.selectedOption) {
-            // Fixed the error by not including 'session_id' directly in the assessment_responses insert
+            const detailsObj = {
+              ...question.details,
+              selectedOption: question.selectedOption,
+              score: question.score
+            };
+            
             const responseInsert = await supabase.from('assessment_responses').insert({
               assessment_id: assessmentId,
               level_number: level,
               question_id: question.id,
               meets_requirement: question.meetsRequirement,
-              details: {
-                ...question.details,
-                selectedOption: question.selectedOption,
-                score: question.score
-              }
+              details: detailsObj
             });
 
             if (responseInsert.error) {

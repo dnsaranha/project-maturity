@@ -15,8 +15,14 @@ interface ResponseHistoryModalProps {
 
 interface ResponseData {
   id: string;
-  response_key: string;
-  response_value: string;
+  level_number?: number;
+  question_id?: number;
+  details: {
+    response_type?: string;
+    response_key?: string;
+    response_value?: string;
+    [key: string]: any;
+  };
   created_at: string;
 }
 
@@ -34,10 +40,10 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
   const fetchResponses = async () => {
     setLoading(true);
     try {
-      // Use a table specifically for individual responses
+      // Use the updated schema
       const { data, error } = await supabase
         .from('assessment_responses')
-        .select('id, response_key, response_value, created_at')
+        .select('id, level_number, question_id, details, created_at')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
 
@@ -53,28 +59,60 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
     }
   };
 
-  const getResponseType = (key: string) => {
-    if (key.includes('_')) {
-      const parts = key.split('_');
-      if (parts.length >= 2) {
-        return `Nível ${parts[0]}, Questão ${parts[1]}`;
-      }
-    }
-    return key;
-  };
-
-  const formatResponseValue = (value: string) => {
-    try {
-      const parsed = JSON.parse(value);
-      if (typeof parsed === 'object' && parsed !== null) {
-        if (parsed.option) {
-          return `Opção: ${parsed.option.toUpperCase()}`;
+  const getResponseType = (response: ResponseData) => {
+    // If we have the new schema with details.response_key
+    if (response.details && response.details.response_key) {
+      const key = response.details.response_key;
+      if (key.includes('_')) {
+        const parts = key.split('_');
+        if (parts.length >= 2) {
+          return `Nível ${parts[0]}, Questão ${parts[1]}`;
         }
       }
-      return value;
-    } catch (e) {
-      return value;
+      return key;
     }
+    
+    // If we have the old schema with level_number and question_id directly
+    if (response.level_number && response.question_id) {
+      return `Nível ${response.level_number}, Questão ${response.question_id}`;
+    }
+    
+    return 'Desconhecido';
+  };
+
+  const formatResponseValue = (response: ResponseData) => {
+    try {
+      // Try to get value from details.response_value (new schema)
+      if (response.details && response.details.response_value) {
+        const parsed = JSON.parse(response.details.response_value);
+        if (typeof parsed === 'object' && parsed !== null) {
+          if (parsed.option) {
+            return `Opção: ${parsed.option.toUpperCase()}`;
+          }
+        }
+        return response.details.response_value;
+      }
+      
+      // If not found, try to get from details.selectedOption (old schema)
+      if (response.details && response.details.selectedOption) {
+        return `Opção: ${response.details.selectedOption.toUpperCase()}`;
+      }
+      
+      // If none of the above, return a JSON string of details
+      return JSON.stringify(response.details);
+    } catch (e) {
+      return JSON.stringify(response.details);
+    }
+  };
+  
+  const isRespondentData = (response: ResponseData) => {
+    // Check if it's respondent data in the new schema
+    if (response.details && response.details.response_type === 'respondent') {
+      return true;
+    }
+    
+    // Check if it's respondent data in the old schema (no level_number and no question_id)
+    return !response.level_number && !response.question_id;
   };
 
   return (
@@ -110,12 +148,16 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
                 </TableHeader>
                 <TableBody>
                   {responses
-                    .filter(r => !r.response_key.includes('_'))
+                    .filter(r => isRespondentData(r))
                     .map((response) => (
                       <TableRow key={response.id}>
-                        <TableCell>{response.response_key}</TableCell>
-                        <TableCell>{formatResponseValue(response.response_value)}</TableCell>
-                        <TableCell>{format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}</TableCell>
+                        <TableCell>
+                          {response.details?.response_key || "Campo"}
+                        </TableCell>
+                        <TableCell>{formatResponseValue(response)}</TableCell>
+                        <TableCell>
+                          {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
+                        </TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -133,12 +175,14 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
                 </TableHeader>
                 <TableBody>
                   {responses
-                    .filter(r => r.response_key.includes('_'))
+                    .filter(r => !isRespondentData(r))
                     .map((response) => (
                       <TableRow key={response.id}>
-                        <TableCell>{getResponseType(response.response_key)}</TableCell>
-                        <TableCell>{formatResponseValue(response.response_value)}</TableCell>
-                        <TableCell>{format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}</TableCell>
+                        <TableCell>{getResponseType(response)}</TableCell>
+                        <TableCell>{formatResponseValue(response)}</TableCell>
+                        <TableCell>
+                          {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
+                        </TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -158,12 +202,14 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
                   {responses.map((response) => (
                     <TableRow key={response.id}>
                       <TableCell>
-                        {response.response_key.includes('_') 
-                          ? getResponseType(response.response_key) 
-                          : response.response_key}
+                        {isRespondentData(response) 
+                          ? (response.details?.response_key || "Campo")
+                          : getResponseType(response)}
                       </TableCell>
-                      <TableCell>{formatResponseValue(response.response_value)}</TableCell>
-                      <TableCell>{format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}</TableCell>
+                      <TableCell>{formatResponseValue(response)}</TableCell>
+                      <TableCell>
+                        {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

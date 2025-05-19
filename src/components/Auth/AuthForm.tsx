@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthProvider';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,9 +16,24 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 
-const AuthForm = () => {
-  const { signIn, signUp, loading } = useAuth();
+// A wrapper component that only renders AuthForm when it's inside a Router
+const AuthFormWrapper = () => {
+  // First check if we're inside a Router context
+  try {
+    // This will throw if we're not in a Router context
+    useLocation();
+    // If we didn't throw, we're in a Router context and can safely render the AuthForm
+    return <AuthFormContent />;
+  } catch (e) {
+    // If we're not in a Router context, render a message or fallback
+    return <div>Authentication is not available on this page</div>;
+  }
+};
+
+// The actual content of the AuthForm
+const AuthFormContent = () => {
   const navigate = useNavigate();
+  const { signIn, signUp, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tab, setTab] = useState<'login' | 'register'>('login');
@@ -132,4 +147,4 @@ const AuthForm = () => {
   );
 };
 
-export default AuthForm;
+export default AuthFormWrapper;

@@ -2,7 +2,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import AuthForm from '@/components/Auth/AuthForm';
+import AuthFormWrapper from '@/components/Auth/AuthForm';
 import { useAuth } from '@/context/AuthProvider';
 
 const Index = () => {
@@ -33,7 +33,7 @@ const Index = () => {
           <p className="text-center mb-6">
             Por favor, faça login ou cadastre-se para participar da avaliação.
           </p>
-          <AuthForm />
+          <AuthFormWrapper />
         </div>
       )}
     </div>

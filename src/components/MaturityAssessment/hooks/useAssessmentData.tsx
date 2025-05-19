@@ -238,7 +238,7 @@ export const useAssessmentData = () => {
     try {
       // 1. Save the main assessment
       const assessmentResponse = await supabase.from('maturity_assessments').insert({
-        session_id: assessmentData.sessionId,
+        session_id: assessmentData.sessionId, // Add session_id to the maturity_assessments table
         has_project_experience: assessmentData.respondent.hasProjectExperience,
         is_pharmaceutical: assessmentData.respondent.isPharmaceutical,
         pharmaceutical_type: assessmentData.respondent.pharmaceuticalType,
@@ -269,6 +269,7 @@ export const useAssessmentData = () => {
             
             const responseInsert = await supabase.from('assessment_responses').insert({
               assessment_id: assessmentId,
+              session_id: assessmentData.sessionId, // Ensure session_id is included
               level_number: level,
               question_id: question.id,
               meets_requirement: question.meetsRequirement,

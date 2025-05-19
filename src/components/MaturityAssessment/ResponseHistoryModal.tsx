@@ -39,7 +39,21 @@ const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModal
           .order('created_at', { ascending: false });
           
         if (error) throw error;
-        setResponses(data || []);
+        
+        // Transform the data to match our ResponseData interface
+        const transformedData = data?.map(item => ({
+          id: item.id,
+          level_number: item.level_number,
+          question_id: item.question_id,
+          details: item.details as {
+            response_type: string;
+            response_key: string;
+            response_value: string;
+          },
+          created_at: item.created_at
+        })) || [];
+        
+        setResponses(transformedData);
       } catch (error) {
         console.error('Error fetching responses:', error);
       } finally {

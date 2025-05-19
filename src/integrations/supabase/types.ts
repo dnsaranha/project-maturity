@@ -200,6 +200,7 @@ export type Database = {
           overall_maturity: number | null
           pharmaceutical_type: string | null
           respondent_id: string | null
+          session_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -215,6 +216,7 @@ export type Database = {
           overall_maturity?: number | null
           pharmaceutical_type?: string | null
           respondent_id?: string | null
+          session_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -230,6 +232,7 @@ export type Database = {
           overall_maturity?: number | null
           pharmaceutical_type?: string | null
           respondent_id?: string | null
+          session_id?: string | null
           updated_at?: string | null
         }
         Relationships: []

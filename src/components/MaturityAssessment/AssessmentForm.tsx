@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { X, Save, History } from 'lucide-react';
 import ResponseHistoryModal from './ResponseHistoryModal';
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '@/context/AuthProvider';
 
 // Define assessment data structure
 export interface AssessmentData {
@@ -47,6 +48,7 @@ export interface AssessmentData {
 
 const AssessmentForm = () => {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [activeTab, setActiveTab] = useState("respondent");
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
     respondent: {
@@ -280,7 +282,7 @@ const AssessmentForm = () => {
     saveIndividualResponse('question', `${level}_${questionId}`, { option, score });
   };
 
-  // Handle question details updates
+  // Handle question details updates - not used anymore but kept for compatibility
   const updateQuestionDetails = (level: number, questionId: number, field: string, value: string) => {
     setAssessmentData(prev => {
       const updatedLevels = { ...prev.levels };
@@ -310,11 +312,11 @@ const AssessmentForm = () => {
   // Save individual responses to database as they're made
   const saveIndividualResponse = async (type: string, key: string, value: any) => {
     try {
-      await supabase.from('assessment_responses').upsert({
-        session_id: assessmentData.sessionId,
+      await supabase.from('assessment_responses').insert({
         response_type: type,
         response_key: key,
         response_value: JSON.stringify(value),
+        session_id: assessmentData.sessionId,
         created_at: new Date().toISOString()
       });
     } catch (error) {
@@ -352,9 +354,9 @@ const AssessmentForm = () => {
       for (let level = 2; level <= 5; level++) {
         for (const question of assessmentData.levels[level].questions) {
           if (question.selectedOption) {
+            // Fixed the error by not including 'session_id' directly in the assessment_responses insert
             const responseInsert = await supabase.from('assessment_responses').insert({
               assessment_id: assessmentId,
-              session_id: assessmentData.sessionId,
               level_number: level,
               question_id: question.id,
               meets_requirement: question.meetsRequirement,
@@ -432,25 +434,29 @@ const AssessmentForm = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <ResponseHistoryModal 
-        open={showHistory} 
-        onClose={() => setShowHistory(false)}
-        sessionId={assessmentData.sessionId || ''}
-      />
+      {session && (
+        <ResponseHistoryModal 
+          open={showHistory} 
+          onClose={() => setShowHistory(false)}
+          sessionId={assessmentData.sessionId || ''}
+        />
+      )}
       
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">
           Autoavaliação de Maturidade em Gerenciamento de Projetos (MMGP)
         </h1>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => setShowHistory(true)}
-            title="Ver histórico de respostas"
-          >
-            <History className="h-5 w-5" />
-          </Button>
+          {session && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setShowHistory(true)}
+              title="Ver histórico de respostas"
+            >
+              <History className="h-5 w-5" />
+            </Button>
+          )}
           <Button 
             variant="destructive" 
             size="icon" 

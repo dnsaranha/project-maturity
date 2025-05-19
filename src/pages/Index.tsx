@@ -21,17 +21,17 @@ const Index = () => {
         </p>
       </div>
       
-      {user ? (
-        <Button 
-          onClick={() => navigate('/consent')}
-          className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors text-lg"
-        >
-          Iniciar Avaliação
-        </Button>
-      ) : (
-        <div className="w-full max-w-md">
+      <Button 
+        onClick={() => navigate('/assessment')}
+        className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors text-lg"
+      >
+        Iniciar Avaliação
+      </Button>
+      
+      {!user && (
+        <div className="w-full max-w-md mt-10">
           <p className="text-center mb-6">
-            Por favor, faça login ou cadastre-se para participar da avaliação.
+            Você também pode fazer login para acessar recursos adicionais.
           </p>
           <AuthFormWrapper />
         </div>

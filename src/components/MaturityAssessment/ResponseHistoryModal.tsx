@@ -1,11 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ResponseHistoryModalProps {
   open: boolean;
@@ -15,210 +12,161 @@ interface ResponseHistoryModalProps {
 
 interface ResponseData {
   id: string;
-  level_number?: number;
-  question_id?: number;
+  level_number: number | null;
+  question_id: number | null;
   details: {
-    response_type?: string;
-    response_key?: string;
-    response_value?: string;
-    [key: string]: any;
+    response_type: string;
+    response_key: string;
+    response_value: string;
   };
   created_at: string;
 }
 
-const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClose, sessionId }) => {
-  const [loading, setLoading] = useState(true);
+const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModalProps) => {
   const [responses, setResponses] = useState<ResponseData[]>([]);
-  const [activeTab, setActiveTab] = useState('respondent');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (open && sessionId) {
-      fetchResponses();
-    }
+    if (!open || !sessionId) return;
+    
+    const fetchResponses = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('assessment_responses')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        setResponses(data || []);
+      } catch (error) {
+        console.error('Error fetching responses:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchResponses();
   }, [open, sessionId]);
 
-  const fetchResponses = async () => {
-    setLoading(true);
-    try {
-      // Use the updated schema
-      const { data, error } = await supabase
-        .from('assessment_responses')
-        .select('id, level_number, question_id, details, created_at')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      if (data) {
-        setResponses(data as ResponseData[]);
-      }
-    } catch (error) {
-      console.error('Error fetching responses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getResponseType = (response: ResponseData) => {
-    // If we have the new schema with details.response_key
-    if (response.details && response.details.response_key) {
-      const key = response.details.response_key;
-      if (key.includes('_')) {
-        const parts = key.split('_');
-        if (parts.length >= 2) {
-          return `Nível ${parts[0]}, Questão ${parts[1]}`;
-        }
-      }
-      return key;
-    }
-    
-    // If we have the old schema with level_number and question_id directly
-    if (response.level_number && response.question_id) {
-      return `Nível ${response.level_number}, Questão ${response.question_id}`;
-    }
-    
-    return 'Desconhecido';
-  };
-
-  const formatResponseValue = (response: ResponseData) => {
-    try {
-      // Try to get value from details.response_value (new schema)
-      if (response.details && response.details.response_value) {
-        const parsed = JSON.parse(response.details.response_value);
-        if (typeof parsed === 'object' && parsed !== null) {
-          if (parsed.option) {
-            return `Opção: ${parsed.option.toUpperCase()}`;
-          }
-        }
-        return response.details.response_value;
-      }
-      
-      // If not found, try to get from details.selectedOption (old schema)
-      if (response.details && response.details.selectedOption) {
-        return `Opção: ${response.details.selectedOption.toUpperCase()}`;
-      }
-      
-      // If none of the above, return a JSON string of details
-      return JSON.stringify(response.details);
-    } catch (e) {
-      return JSON.stringify(response.details);
-    }
-  };
-  
-  const isRespondentData = (response: ResponseData) => {
-    // Check if it's respondent data in the new schema
-    if (response.details && response.details.response_type === 'respondent') {
-      return true;
-    }
-    
-    // Check if it's respondent data in the old schema (no level_number and no question_id)
-    return !response.level_number && !response.question_id;
-  };
-
   return (
-    <Dialog open={open} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Histórico de Respostas</DialogTitle>
-          <DialogDescription>
-            Histórico das respostas enviadas nesta sessão
-          </DialogDescription>
         </DialogHeader>
-
+        
         {loading ? (
-          <div className="flex justify-center my-10">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <div className="flex justify-center py-8">
+            <p>Carregando histórico...</p>
+          </div>
+        ) : responses.length === 0 ? (
+          <div className="text-center py-8">
+            <p>Nenhuma resposta encontrada para esta sessão.</p>
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-3">
+          <Tabs defaultValue="all">
+            <TabsList>
+              <TabsTrigger value="all">Todas</TabsTrigger>
               <TabsTrigger value="respondent">Classificação</TabsTrigger>
-              <TabsTrigger value="questions">Questões</TabsTrigger>
-              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="level2">Nível 2</TabsTrigger>
+              <TabsTrigger value="level3">Nível 3</TabsTrigger>
+              <TabsTrigger value="level4">Nível 4</TabsTrigger>
+              <TabsTrigger value="level5">Nível 5</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="respondent">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Campo</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {responses
-                    .filter(r => isRespondentData(r))
-                    .map((response) => (
-                      <TableRow key={response.id}>
-                        <TableCell>
-                          {response.details?.response_key || "Campo"}
-                        </TableCell>
-                        <TableCell>{formatResponseValue(response)}</TableCell>
-                        <TableCell>
-                          {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+            <TabsContent value="all" className="space-y-4">
+              {responses.map((response) => (
+                <ResponseItem key={response.id} response={response} />
+              ))}
             </TabsContent>
             
-            <TabsContent value="questions">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Questão</TableHead>
-                    <TableHead>Resposta</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {responses
-                    .filter(r => !isRespondentData(r))
-                    .map((response) => (
-                      <TableRow key={response.id}>
-                        <TableCell>{getResponseType(response)}</TableCell>
-                        <TableCell>{formatResponseValue(response)}</TableCell>
-                        <TableCell>
-                          {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+            <TabsContent value="respondent" className="space-y-4">
+              {responses
+                .filter((r) => r.details?.response_type === 'respondent')
+                .map((response) => (
+                  <ResponseItem key={response.id} response={response} />
+                ))}
             </TabsContent>
             
-            <TabsContent value="all">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Campo</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {responses.map((response) => (
-                    <TableRow key={response.id}>
-                      <TableCell>
-                        {isRespondentData(response) 
-                          ? (response.details?.response_key || "Campo")
-                          : getResponseType(response)}
-                      </TableCell>
-                      <TableCell>{formatResponseValue(response)}</TableCell>
-                      <TableCell>
-                        {format(new Date(response.created_at), 'dd/MM/yyyy HH:mm:ss')}
-                      </TableCell>
-                    </TableRow>
+            {[2, 3, 4, 5].map((level) => (
+              <TabsContent key={level} value={`level${level}`} className="space-y-4">
+                {responses
+                  .filter((r) => r.level_number === level)
+                  .map((response) => (
+                    <ResponseItem key={response.id} response={response} />
                   ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
+              </TabsContent>
+            ))}
           </Tabs>
         )}
       </DialogContent>
     </Dialog>
+  );
+};
+
+const ResponseItem = ({ response }: { response: ResponseData }) => {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const formatResponseKey = (key: string) => {
+    if (response.details.response_type === 'respondent') {
+      return {
+        'hasProjectExperience': 'Experiência em Projetos',
+        'isPharmaceutical': 'Setor Farmacêutico',
+        'pharmaceuticalType': 'Tipo de Empresa Farmacêutica',
+        'companySize': 'Porte da Empresa',
+        'state': 'Estado'
+      }[key] || key;
+    }
+    
+    if (response.details.response_type === 'question') {
+      const [level, questionId] = key.split('_');
+      return `Nível ${level} - Questão ${questionId}`;
+    }
+    
+    return key;
+  };
+
+  const formatResponseValue = (value: string) => {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === 'object' && parsed !== null) {
+        if ('option' in parsed) {
+          const optionLabels: Record<string, string> = {
+            'a': 'A - Totalmente implementado',
+            'b': 'B - Largamente implementado',
+            'c': 'C - Parcialmente implementado',
+            'd': 'D - Iniciando implementação',
+            'e': 'E - Não implementado'
+          };
+          return optionLabels[parsed.option] || parsed.option;
+        }
+        return JSON.stringify(parsed);
+      }
+      return String(parsed);
+    } catch (e) {
+      return value;
+    }
+  };
+
+  return (
+    <div className="border rounded-md p-4 bg-white">
+      <div className="flex justify-between mb-2">
+        <h4 className="font-medium">{formatResponseKey(response.details?.response_key || '')}</h4>
+        <span className="text-sm text-gray-500">{formatDate(response.created_at)}</span>
+      </div>
+      <p>{formatResponseValue(response.details?.response_value || '')}</p>
+    </div>
   );
 };
 

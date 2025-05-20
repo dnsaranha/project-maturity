@@ -10,15 +10,17 @@ interface ResponseHistoryModalProps {
   sessionId: string;
 }
 
+interface ResponseDetails {
+  response_type: string;
+  response_key: string;
+  response_value: string;
+}
+
 interface ResponseData {
   id: string;
   level_number: number | null;
   question_id: number | null;
-  details: {
-    response_type: string;
-    response_key: string;
-    response_value: string;
-  };
+  details: ResponseDetails;
   created_at: string;
 }
 
@@ -45,11 +47,7 @@ const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModal
           id: item.id,
           level_number: item.level_number,
           question_id: item.question_id,
-          details: item.details as {
-            response_type: string;
-            response_key: string;
-            response_value: string;
-          },
+          details: item.details as ResponseDetails,
           created_at: item.created_at
         })) || [];
         

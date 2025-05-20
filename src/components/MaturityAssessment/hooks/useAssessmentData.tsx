@@ -2,8 +2,16 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { levelQuestions } from '../questions';
-import { supabase } from '@/integrations/supabase/client';
-import { AssessmentData } from '../AssessmentForm';
+import { AssessmentData } from '../types';
+import { 
+  calculateProgress, 
+  calculateScores, 
+  isFormComplete as checkFormComplete 
+} from '../utils/assessmentCalculations';
+import { 
+  saveIndividualResponse, 
+  saveAssessment as saveAssessmentToDb 
+} from '../services/assessmentService';
 
 export const useAssessmentData = () => {
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
@@ -66,64 +74,12 @@ export const useAssessmentData = () => {
 
   // Calculate progress whenever assessment data changes
   useEffect(() => {
-    const calculateProgress = () => {
-      let answered = 0;
-      let total = 0;
-      
-      // Count respondent section (4 questions)
-      if (assessmentData.respondent.hasProjectExperience !== null) answered++;
-      if (assessmentData.respondent.isPharmaceutical !== null) answered++;
-      if (assessmentData.respondent.companySize) answered++;
-      if (assessmentData.respondent.state) answered++;
-      total += 4;
-      
-      // Count questions from each level
-      for (let level = 2; level <= 5; level++) {
-        assessmentData.levels[level].questions.forEach(q => {
-          if (q.selectedOption) answered++;
-        });
-        total += 10; // Each level has 10 questions
-      }
-      
-      return Math.floor((answered / total) * 100);
-    };
-    
-    setProgress(calculateProgress());
+    setProgress(calculateProgress(assessmentData));
   }, [assessmentData]);
 
   // Calculate scores whenever answers change
   useEffect(() => {
-    const calculateScores = () => {
-      const scores = { 2: 0, 3: 0, 4: 0, 5: 0 };
-      
-      // Calculate score for each level
-      for (let level = 2; level <= 5; level++) {
-        const levelQuestions = assessmentData.levels[level].questions;
-        let levelTotal = 0;
-        
-        levelQuestions.forEach(q => {
-          if (q.score !== undefined) {
-            levelTotal += q.score;
-          }
-        });
-        
-        scores[level] = levelTotal;
-      }
-      
-      // Calculate total points
-      const totalPoints = scores[2] + scores[3] + scores[4] + scores[5];
-      
-      // Calculate overall maturity using the formula: (100 + total_points) / 100
-      const overallMaturity = (100 + totalPoints) / 100;
-      
-      return {
-        levelScores: scores,
-        totalPoints,
-        overall: overallMaturity
-      };
-    };
-    
-    const { levelScores, totalPoints, overall } = calculateScores();
+    const { levelScores, totalPoints, overall } = calculateScores(assessmentData);
     
     setAssessmentData(prev => ({
       ...prev,
@@ -144,7 +100,9 @@ export const useAssessmentData = () => {
     }));
     
     // Save individual response to database
-    saveIndividualResponse('respondent', field as string, value);
+    if (assessmentData.sessionId) {
+      saveIndividualResponse(assessmentData.sessionId, 'respondent', field as string, value);
+    }
   };
 
   // Handle question answer updates with options (a, b, c, d, e) and scores
@@ -181,7 +139,9 @@ export const useAssessmentData = () => {
     });
     
     // Save individual response to database
-    saveIndividualResponse('question', `${level}_${questionId}`, { option, score });
+    if (assessmentData.sessionId) {
+      saveIndividualResponse(assessmentData.sessionId, 'question', `${level}_${questionId}`, { option, score });
+    }
   };
 
   // Handle question details updates - not used anymore but kept for compatibility
@@ -208,88 +168,24 @@ export const useAssessmentData = () => {
     });
     
     // Save individual response to database
-    saveIndividualResponse('detail', `${level}_${questionId}_${field}`, value);
-  };
-
-  // Save individual responses to database as they're made
-  const saveIndividualResponse = async (type: string, key: string, value: any) => {
-    try {
-      // Create a details object to store the extra information
-      const details: any = {};
-      
-      // Add the response type and key to the details
-      details.response_type = type;
-      details.response_key = key;
-      details.response_value = JSON.stringify(value);
-      
-      await supabase.from('assessment_responses').insert({
-        session_id: assessmentData.sessionId,
-        level_number: type === 'question' ? parseInt(key.split('_')[0]) : null,
-        question_id: type === 'question' ? parseInt(key.split('_')[1]) : null,
-        details: details
-      });
-    } catch (error) {
-      console.error("Erro ao salvar resposta individual:", error);
+    if (assessmentData.sessionId) {
+      saveIndividualResponse(assessmentData.sessionId, 'detail', `${level}_${questionId}_${field}`, value);
     }
   };
 
   // Save the complete assessment to Supabase
   const saveAssessment = async () => {
     try {
-      // 1. Save the main assessment
-      const assessmentResponse = await supabase.from('maturity_assessments').insert({
-        session_id: assessmentData.sessionId, // Add session_id to the maturity_assessments table
-        has_project_experience: assessmentData.respondent.hasProjectExperience,
-        is_pharmaceutical: assessmentData.respondent.isPharmaceutical,
-        pharmaceutical_type: assessmentData.respondent.pharmaceuticalType,
-        company_size: assessmentData.respondent.companySize,
-        state: assessmentData.respondent.state,
-        level_2_score: Math.round(assessmentData.scores[2]),
-        level_3_score: Math.round(assessmentData.scores[3]),
-        level_4_score: Math.round(assessmentData.scores[4]),
-        level_5_score: Math.round(assessmentData.scores[5]),
-        overall_maturity: assessmentData.overallMaturity
-      }).select().single();
+      // Call the service function to save assessment data
+      const assessmentId = await saveAssessmentToDb(assessmentData);
 
-      if (assessmentResponse.error) {
-        throw assessmentResponse.error;
-      }
-
-      const assessmentId = assessmentResponse.data.id;
-
-      // 2. Save the responses for each level in a consolidated way
-      for (let level = 2; level <= 5; level++) {
-        for (const question of assessmentData.levels[level].questions) {
-          if (question.selectedOption) {
-            const detailsObj = {
-              ...question.details,
-              selectedOption: question.selectedOption,
-              score: question.score
-            };
-            
-            const responseInsert = await supabase.from('assessment_responses').insert({
-              assessment_id: assessmentId,
-              session_id: assessmentData.sessionId, // Ensure session_id is included
-              level_number: level,
-              question_id: question.id,
-              meets_requirement: question.meetsRequirement,
-              details: detailsObj
-            });
-
-            if (responseInsert.error) {
-              throw responseInsert.error;
-            }
-          }
-        }
-      }
-
-      // 3. Update the assessment ID in the state
+      // Update the assessment ID in the state
       setAssessmentData(prev => ({
         ...prev,
         assessmentId
       }));
 
-      // 4. Mark assessment as saved to allow viewing results
+      // Mark assessment as saved to allow viewing results
       setIsAssessmentSaved(true);
       
       return true;
@@ -297,28 +193,6 @@ export const useAssessmentData = () => {
       console.error("Erro ao salvar avaliação:", error);
       throw error;
     }
-  };
-
-  // Check if form is complete to enable save button
-  const isFormComplete = () => {
-    // Check respondent data
-    const respondentComplete = 
-      assessmentData.respondent.hasProjectExperience !== null && 
-      assessmentData.respondent.isPharmaceutical !== null && 
-      !!assessmentData.respondent.companySize &&
-      !!assessmentData.respondent.state;
-      
-    if (!respondentComplete) return false;
-    
-    // Check all levels have all questions answered
-    for (let level = 2; level <= 5; level++) {
-      const allQuestionsAnswered = assessmentData.levels[level].questions.every(
-        q => q.selectedOption !== undefined
-      );
-      if (!allQuestionsAnswered) return false;
-    }
-    
-    return true;
   };
 
   return {
@@ -330,6 +204,6 @@ export const useAssessmentData = () => {
     updateQuestionAnswer,
     updateQuestionDetails,
     saveAssessment,
-    isFormComplete
+    isFormComplete: () => checkFormComplete(assessmentData)
   };
 };

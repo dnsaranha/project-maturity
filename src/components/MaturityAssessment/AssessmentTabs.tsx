@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import RespondentSection from './RespondentSection';
 import LevelSection from './LevelSection';
 import ResultsSection from './ResultsSection';
 import { levelQuestions } from './questions';
-import { AssessmentData } from './AssessmentForm';
+import { AssessmentData } from './types';
 
 interface AssessmentTabsProps {
   activeTab: string;

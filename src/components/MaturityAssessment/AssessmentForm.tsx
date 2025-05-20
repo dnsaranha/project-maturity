@@ -8,37 +8,7 @@ import ProgressBar from './ProgressBar';
 import ResponseHistoryModal from './ResponseHistoryModal';
 import AssessmentHeader from './AssessmentHeader';
 import AssessmentTabs from './AssessmentTabs';
-
-// Define assessment data structure
-export interface AssessmentData {
-  respondent: {
-    hasProjectExperience: boolean | null;
-    isPharmaceutical: boolean | null;
-    pharmaceuticalType: string;
-    companySize: string;
-    state: string;
-  };
-  levels: {
-    [key: number]: {
-      questions: {
-        id: number;
-        meetsRequirement: boolean | null;
-        selectedOption?: string;
-        score?: number;
-        details: {
-          [key: string]: string;
-        };
-      }[];
-    };
-  };
-  scores: {
-    [key: number]: number;
-  };
-  totalPoints: number;
-  overallMaturity: number;
-  assessmentId?: string;
-  sessionId?: string;
-}
+import { AssessmentData } from './types';
 
 const AssessmentForm = () => {
   const navigate = useNavigate();

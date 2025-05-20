@@ -201,6 +201,7 @@ export type Database = {
           pharmaceutical_type: string | null
           respondent_id: string | null
           session_id: string | null
+          state: string | null
           updated_at: string | null
         }
         Insert: {
@@ -217,6 +218,7 @@ export type Database = {
           pharmaceutical_type?: string | null
           respondent_id?: string | null
           session_id?: string | null
+          state?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -233,6 +235,7 @@ export type Database = {
           pharmaceutical_type?: string | null
           respondent_id?: string | null
           session_id?: string | null
+          state?: string | null
           updated_at?: string | null
         }
         Relationships: []

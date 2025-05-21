@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { AssessmentData } from '../types';
 
 // Save individual responses to database as they're made
 export const saveIndividualResponse = async (
@@ -29,10 +30,10 @@ export const saveIndividualResponse = async (
 };
 
 // Save the complete assessment to Supabase
-export const saveAssessment = async (assessmentData: any) => {
+export const saveAssessment = async (assessmentData: AssessmentData) => {
   try {
-    // 1. Save the main assessment
-    const assessmentResponse = await supabase.from('maturity_assessments').insert({
+    // 1. Create the insert object first
+    const insertData = {
       session_id: assessmentData.sessionId, 
       has_project_experience: assessmentData.respondent.hasProjectExperience,
       is_pharmaceutical: assessmentData.respondent.isPharmaceutical,
@@ -44,15 +45,26 @@ export const saveAssessment = async (assessmentData: any) => {
       level_4_score: Math.round(assessmentData.scores[4]),
       level_5_score: Math.round(assessmentData.scores[5]),
       overall_maturity: assessmentData.overallMaturity
-    }).select().single();
+    };
+
+    console.log("Trying to insert assessment:", insertData);
+
+    // 2. Insert into maturity_assessments
+    const assessmentResponse = await supabase
+      .from('maturity_assessments')
+      .insert(insertData)
+      .select()
+      .single();
 
     if (assessmentResponse.error) {
+      console.error("Error details:", assessmentResponse.error);
       throw assessmentResponse.error;
     }
 
+    console.log("Assessment saved successfully:", assessmentResponse.data);
     const assessmentId = assessmentResponse.data.id;
 
-    // 2. Save the responses for each level in a consolidated way
+    // 3. Save the responses for each level
     for (let level = 2; level <= 5; level++) {
       for (const question of assessmentData.levels[level].questions) {
         if (question.selectedOption) {
@@ -62,17 +74,19 @@ export const saveAssessment = async (assessmentData: any) => {
             score: question.score
           };
           
-          const responseInsert = await supabase.from('assessment_responses').insert({
-            assessment_id: assessmentId,
-            session_id: assessmentData.sessionId,
-            level_number: level,
-            question_id: question.id,
-            meets_requirement: question.meetsRequirement,
-            details: detailsObj
-          });
+          const responseInsert = await supabase
+            .from('assessment_responses')
+            .insert({
+              assessment_id: assessmentId,
+              session_id: assessmentData.sessionId,
+              level_number: level,
+              question_id: question.id,
+              meets_requirement: question.meetsRequirement,
+              details: detailsObj
+            });
 
           if (responseInsert.error) {
-            throw responseInsert.error;
+            console.error(`Error saving response for level ${level}, question ${question.id}:`, responseInsert.error);
           }
         }
       }

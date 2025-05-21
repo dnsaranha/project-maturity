@@ -176,6 +176,8 @@ export const useAssessmentData = () => {
   // Save the complete assessment to Supabase
   const saveAssessment = async () => {
     try {
+      console.log("Saving assessment data:", assessmentData);
+      
       // Call the service function to save assessment data
       const assessmentId = await saveAssessmentToDb(assessmentData);
 

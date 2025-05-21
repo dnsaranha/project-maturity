@@ -10,6 +10,7 @@ interface ResponseHistoryModalProps {
   sessionId: string;
 }
 
+// Define the expected shape of response details
 interface ResponseDetails {
   response_type: string;
   response_key: string;
@@ -44,22 +45,23 @@ const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModal
         
         // Transform the data to match our ResponseData interface
         const transformedData = data?.map(item => {
-          // Safely cast details to ResponseDetails with type checking
-          const details = item.details ? {
-            response_type: item.details.response_type || '',
-            response_key: item.details.response_key || '',
-            response_value: item.details.response_value || ''
-          } : {
-            response_type: '',
-            response_key: '',
-            response_value: ''
+          // Check if details exists and is an object
+          const itemDetails = typeof item.details === 'object' && item.details !== null 
+            ? item.details 
+            : {};
+            
+          // Create a properly typed details object
+          const details: ResponseDetails = {
+            response_type: typeof itemDetails.response_type === 'string' ? itemDetails.response_type : '',
+            response_key: typeof itemDetails.response_key === 'string' ? itemDetails.response_key : '',
+            response_value: typeof itemDetails.response_value === 'string' ? itemDetails.response_value : ''
           };
           
           return {
             id: item.id,
             level_number: item.level_number,
             question_id: item.question_id,
-            details: details as ResponseDetails,
+            details: details,
             created_at: item.created_at
           };
         }) || [];

@@ -46,9 +46,11 @@ const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModal
         // Transform the data to match our ResponseData interface
         const transformedData = data?.map(item => {
           // Check if details exists and is an object
-          const itemDetails = typeof item.details === 'object' && item.details !== null 
-            ? item.details 
-            : {};
+          let itemDetails: any = {};
+          
+          if (item.details && typeof item.details === 'object') {
+            itemDetails = item.details;
+          }
             
           // Create a properly typed details object
           const details: ResponseDetails = {

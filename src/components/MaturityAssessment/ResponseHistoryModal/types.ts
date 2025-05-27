@@ -16,3 +16,11 @@ export interface ResponseData {
   };
   created_at: string;
 }
+
+export interface SupabaseResponseData {
+  id: string;
+  level_number: number | null;
+  question_id: number | null;
+  details: any;
+  created_at: string;
+}

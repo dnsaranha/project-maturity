@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import ResponseTabs from './ResponseTabs';
-import { ResponseHistoryModalProps, ResponseData } from './types';
+import { ResponseHistoryModalProps, ResponseData, SupabaseResponseData } from './types';
 
 const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClose, sessionId }) => {
   const [responses, setResponses] = useState<ResponseData[]>([]);
@@ -24,22 +24,18 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
         if (error) throw error;
         
         // Transform the data with safe type handling
-        const transformedData: ResponseData[] = data?.map(item => {
+        const transformedData: ResponseData[] = (data as SupabaseResponseData[])?.map(item => {
           // Safely extract details from JSONB
-          let detailsObj: Record<string, any> = {};
-          
-          if (item.details && typeof item.details === 'object' && !Array.isArray(item.details)) {
-            detailsObj = item.details as Record<string, any>;
-          }
+          const detailsObj = item.details || {};
           
           return {
             id: item.id,
             level_number: item.level_number,
             question_id: item.question_id,
             details: {
-              response_type: typeof detailsObj.response_type === 'string' ? detailsObj.response_type : '',
-              response_key: typeof detailsObj.response_key === 'string' ? detailsObj.response_key : '',
-              response_value: typeof detailsObj.response_value === 'string' ? detailsObj.response_value : ''
+              response_type: detailsObj.response_type || '',
+              response_key: detailsObj.response_key || '',
+              response_value: detailsObj.response_value || ''
             },
             created_at: item.created_at
           };

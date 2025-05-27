@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import ResponseTabs from './ResponseTabs';
-import { ResponseHistoryModalProps, ResponseData, SupabaseResponseData } from './types';
+import { ResponseHistoryModalProps, ResponseData } from './types';
 
 const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClose, sessionId }) => {
   const [responses, setResponses] = useState<ResponseData[]>([]);
@@ -23,23 +23,26 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
           
         if (error) throw error;
         
-        // Transform the data with safe type handling
-        const transformedData: ResponseData[] = (data as SupabaseResponseData[])?.map(item => {
-          // Safely extract details from JSONB
-          const detailsObj = item.details || {};
-          
-          return {
-            id: item.id,
-            level_number: item.level_number,
-            question_id: item.question_id,
-            details: {
-              response_type: detailsObj.response_type || '',
-              response_key: detailsObj.response_key || '',
-              response_value: detailsObj.response_value || ''
-            },
-            created_at: item.created_at
-          };
-        }) || [];
+        // Transform the data safely
+        const transformedData: ResponseData[] = [];
+        
+        if (data) {
+          for (const item of data) {
+            const details = item.details as Record<string, any> || {};
+            
+            transformedData.push({
+              id: item.id,
+              level_number: item.level_number,
+              question_id: item.question_id,
+              details: {
+                response_type: String(details.response_type || ''),
+                response_key: String(details.response_key || ''),
+                response_value: String(details.response_value || '')
+              },
+              created_at: item.created_at
+            });
+          }
+        }
         
         setResponses(transformedData);
       } catch (error) {

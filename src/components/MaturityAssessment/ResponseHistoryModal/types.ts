@@ -10,17 +10,9 @@ export interface ResponseData {
   level_number: number | null;
   question_id: number | null;
   details: {
-    response_type?: string;
-    response_key?: string;
-    response_value?: string;
+    response_type: string;
+    response_key: string;
+    response_value: string;
   };
-  created_at: string;
-}
-
-export interface SupabaseResponseData {
-  id: string;
-  level_number: number | null;
-  question_id: number | null;
-  details: any;
   created_at: string;
 }

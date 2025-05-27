@@ -10,18 +10,16 @@ interface ResponseHistoryModalProps {
   sessionId: string;
 }
 
-// Define the expected shape of response details
-interface ResponseDetails {
-  response_type: string;
-  response_key: string;
-  response_value: string;
-}
-
+// Simplified interface to avoid recursive type issues
 interface ResponseData {
   id: string;
   level_number: number | null;
   question_id: number | null;
-  details: ResponseDetails;
+  details: {
+    response_type?: string;
+    response_key?: string;
+    response_value?: string;
+  };
   created_at: string;
 }
 
@@ -43,27 +41,24 @@ const ResponseHistoryModal = ({ open, onClose, sessionId }: ResponseHistoryModal
           
         if (error) throw error;
         
-        // Transform the data to match our ResponseData interface
-        const transformedData = data?.map(item => {
-          // Check if details exists and is an object
-          let itemDetails: any = {};
+        // Transform the data with explicit type handling
+        const transformedData: ResponseData[] = data?.map(item => {
+          // Safely extract details
+          let detailsObj: any = {};
           
-          if (item.details && typeof item.details === 'object') {
-            itemDetails = item.details;
+          if (item.details && typeof item.details === 'object' && !Array.isArray(item.details)) {
+            detailsObj = item.details as Record<string, any>;
           }
-            
-          // Create a properly typed details object
-          const details: ResponseDetails = {
-            response_type: typeof itemDetails.response_type === 'string' ? itemDetails.response_type : '',
-            response_key: typeof itemDetails.response_key === 'string' ? itemDetails.response_key : '',
-            response_value: typeof itemDetails.response_value === 'string' ? itemDetails.response_value : ''
-          };
           
           return {
             id: item.id,
             level_number: item.level_number,
             question_id: item.question_id,
-            details: details,
+            details: {
+              response_type: typeof detailsObj.response_type === 'string' ? detailsObj.response_type : '',
+              response_key: typeof detailsObj.response_key === 'string' ? detailsObj.response_key : '',
+              response_value: typeof detailsObj.response_value === 'string' ? detailsObj.response_value : ''
+            },
             created_at: item.created_at
           };
         }) || [];

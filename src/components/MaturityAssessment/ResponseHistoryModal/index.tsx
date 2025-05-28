@@ -27,23 +27,33 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
           return;
         }
         
-        // Transform data with minimal processing
         const transformedData: ResponseData[] = [];
         
         if (data && Array.isArray(data)) {
           data.forEach(item => {
             try {
-              const details = item.details || {};
+              // Safe type checking for details object
+              const details = item.details;
+              let detailsObj = {
+                response_type: '',
+                response_key: '',
+                response_value: ''
+              };
+
+              if (details && typeof details === 'object' && !Array.isArray(details)) {
+                const obj = details as Record<string, unknown>;
+                detailsObj = {
+                  response_type: typeof obj.response_type === 'string' ? obj.response_type : '',
+                  response_key: typeof obj.response_key === 'string' ? obj.response_key : '',
+                  response_value: typeof obj.response_value === 'string' ? obj.response_value : ''
+                };
+              }
               
               transformedData.push({
                 id: item.id || '',
                 level_number: item.level_number || null,
                 question_id: item.question_id || null,
-                details: {
-                  response_type: details.response_type ? String(details.response_type) : '',
-                  response_key: details.response_key ? String(details.response_key) : '',
-                  response_value: details.response_value ? String(details.response_value) : ''
-                },
+                details: detailsObj,
                 created_at: item.created_at || ''
               });
             } catch (itemError) {

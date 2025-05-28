@@ -8,18 +8,23 @@ interface ResponseItemProps {
 
 const ResponseItem: React.FC<ResponseItemProps> = ({ response }) => {
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } catch (error) {
+      return dateStr;
+    }
   };
 
-  const formatResponseKey = (key: string) => {
-    if (response.details.response_type === 'respondent') {
+  const formatResponseKey = (key: string, responseType: string) => {
+    if (responseType === 'respondent') {
       const keyMappings: Record<string, string> = {
         'hasProjectExperience': 'Experiência em Projetos',
         'isPharmaceutical': 'Setor Farmacêutico',
@@ -30,15 +35,19 @@ const ResponseItem: React.FC<ResponseItemProps> = ({ response }) => {
       return keyMappings[key] || key;
     }
     
-    if (response.details.response_type === 'question') {
-      const [level, questionId] = key.split('_');
-      return `Nível ${level} - Questão ${questionId}`;
+    if (responseType === 'question') {
+      const parts = key.split('_');
+      if (parts.length >= 2) {
+        return `Nível ${parts[0]} - Questão ${parts[1]}`;
+      }
     }
     
     return key;
   };
 
   const formatResponseValue = (value: string) => {
+    if (!value) return '';
+    
     try {
       const parsed = JSON.parse(value);
       if (typeof parsed === 'object' && parsed !== null) {
@@ -60,13 +69,17 @@ const ResponseItem: React.FC<ResponseItemProps> = ({ response }) => {
     }
   };
 
+  const responseKey = response.details?.response_key || '';
+  const responseType = response.details?.response_type || '';
+  const responseValue = response.details?.response_value || '';
+
   return (
     <div className="border rounded-md p-4 bg-white">
       <div className="flex justify-between mb-2">
-        <h4 className="font-medium">{formatResponseKey(response.details?.response_key || '')}</h4>
+        <h4 className="font-medium">{formatResponseKey(responseKey, responseType)}</h4>
         <span className="text-sm text-gray-500">{formatDate(response.created_at)}</span>
       </div>
-      <p>{formatResponseValue(response.details?.response_value || '')}</p>
+      <p>{formatResponseValue(responseValue)}</p>
     </div>
   );
 };

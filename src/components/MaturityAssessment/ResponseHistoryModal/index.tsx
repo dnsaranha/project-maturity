@@ -21,32 +21,41 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
           .eq('session_id', sessionId)
           .order('created_at', { ascending: false });
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching responses:', error);
+          setResponses([]);
+          return;
+        }
         
-        // Transform the data safely
+        // Transform data with minimal processing
         const transformedData: ResponseData[] = [];
         
-        if (data) {
-          for (const item of data) {
-            const details = item.details as Record<string, any> || {};
-            
-            transformedData.push({
-              id: item.id,
-              level_number: item.level_number,
-              question_id: item.question_id,
-              details: {
-                response_type: String(details.response_type || ''),
-                response_key: String(details.response_key || ''),
-                response_value: String(details.response_value || '')
-              },
-              created_at: item.created_at
-            });
-          }
+        if (data && Array.isArray(data)) {
+          data.forEach(item => {
+            try {
+              const details = item.details || {};
+              
+              transformedData.push({
+                id: item.id || '',
+                level_number: item.level_number || null,
+                question_id: item.question_id || null,
+                details: {
+                  response_type: details.response_type ? String(details.response_type) : '',
+                  response_key: details.response_key ? String(details.response_key) : '',
+                  response_value: details.response_value ? String(details.response_value) : ''
+                },
+                created_at: item.created_at || ''
+              });
+            } catch (itemError) {
+              console.error('Error processing item:', itemError);
+            }
+          });
         }
         
         setResponses(transformedData);
       } catch (error) {
         console.error('Error fetching responses:', error);
+        setResponses([]);
       } finally {
         setLoading(false);
       }

@@ -9,6 +9,14 @@ interface ResponseTabsProps {
 }
 
 const ResponseTabs: React.FC<ResponseTabsProps> = ({ responses }) => {
+  const filterResponsesByType = (type: string) => {
+    return responses.filter((r) => r.details?.response_type === type);
+  };
+
+  const filterResponsesByLevel = (level: number) => {
+    return responses.filter((r) => r.level_number === level);
+  };
+
   return (
     <Tabs defaultValue="all">
       <TabsList>
@@ -27,22 +35,34 @@ const ResponseTabs: React.FC<ResponseTabsProps> = ({ responses }) => {
       </TabsContent>
       
       <TabsContent value="respondent" className="space-y-4">
-        {responses
-          .filter((r) => r.details?.response_type === 'respondent')
-          .map((response) => (
-            <ResponseItem key={response.id} response={response} />
-          ))}
+        {filterResponsesByType('respondent').map((response) => (
+          <ResponseItem key={response.id} response={response} />
+        ))}
       </TabsContent>
       
-      {[2, 3, 4, 5].map((level) => (
-        <TabsContent key={level} value={`level${level}`} className="space-y-4">
-          {responses
-            .filter((r) => r.level_number === level)
-            .map((response) => (
-              <ResponseItem key={response.id} response={response} />
-            ))}
-        </TabsContent>
-      ))}
+      <TabsContent value="level2" className="space-y-4">
+        {filterResponsesByLevel(2).map((response) => (
+          <ResponseItem key={response.id} response={response} />
+        ))}
+      </TabsContent>
+      
+      <TabsContent value="level3" className="space-y-4">
+        {filterResponsesByLevel(3).map((response) => (
+          <ResponseItem key={response.id} response={response} />
+        ))}
+      </TabsContent>
+      
+      <TabsContent value="level4" className="space-y-4">
+        {filterResponsesByLevel(4).map((response) => (
+          <ResponseItem key={response.id} response={response} />
+        ))}
+      </TabsContent>
+      
+      <TabsContent value="level5" className="space-y-4">
+        {filterResponsesByLevel(5).map((response) => (
+          <ResponseItem key={response.id} response={response} />
+        ))}
+      </TabsContent>
     </Tabs>
   );
 };

@@ -3,10 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import ResponseTabs from './ResponseTabs';
-import { ResponseHistoryModalProps, ResponseData } from './types';
+import { ResponseHistoryModalProps } from './types';
+
+interface SimpleResponseData {
+  id: string;
+  level_number: number | null;
+  question_id: number | null;
+  details: any;
+  created_at: string;
+}
 
 const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClose, sessionId }) => {
-  const [responses, setResponses] = useState<ResponseData[]>([]);
+  const [responses, setResponses] = useState<SimpleResponseData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,42 +35,7 @@ const ResponseHistoryModal: React.FC<ResponseHistoryModalProps> = ({ open, onClo
           return;
         }
         
-        const transformedData: ResponseData[] = [];
-        
-        if (data && Array.isArray(data)) {
-          data.forEach(item => {
-            try {
-              // Safe type checking for details object
-              const details = item.details;
-              let detailsObj = {
-                response_type: '',
-                response_key: '',
-                response_value: ''
-              };
-
-              if (details && typeof details === 'object' && !Array.isArray(details)) {
-                const obj = details as Record<string, unknown>;
-                detailsObj = {
-                  response_type: typeof obj.response_type === 'string' ? obj.response_type : '',
-                  response_key: typeof obj.response_key === 'string' ? obj.response_key : '',
-                  response_value: typeof obj.response_value === 'string' ? obj.response_value : ''
-                };
-              }
-              
-              transformedData.push({
-                id: item.id || '',
-                level_number: item.level_number || null,
-                question_id: item.question_id || null,
-                details: detailsObj,
-                created_at: item.created_at || ''
-              });
-            } catch (itemError) {
-              console.error('Error processing item:', itemError);
-            }
-          });
-        }
-        
-        setResponses(transformedData);
+        setResponses(data || []);
       } catch (error) {
         console.error('Error fetching responses:', error);
         setResponses([]);

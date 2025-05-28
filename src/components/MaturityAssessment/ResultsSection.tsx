@@ -1,6 +1,8 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import {
   BarChart,
   Bar,
@@ -10,7 +12,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
   ReferenceLine,
 } from "recharts";
 
@@ -22,31 +23,45 @@ interface ResultsSectionProps {
   overallMaturity: number;
 }
 
-const getMaturityLevel = (score: number): string => {
-  if (score < 1.5) return "Inicial (ad hoc)";
-  if (score < 2.5) return "Conhecido";
-  if (score < 3.5) return "Padronizado";
-  if (score < 4.5) return "Gerenciado";
-  return "Otimizado";
-};
+const ResultsSection: React.FC<ResultsSectionProps> = ({ scores, totalPoints, overallMaturity }) => {
+  
+  const getMaturityLevel = (index: number): string => {
+    if (index < 2) return "Inicial";
+    if (index < 3) return "Conhecido";
+    if (index < 4) return "Padronizado";
+    if (index < 5) return "Gerenciado";
+    return "Otimizado";
+  };
 
-const getMaturityDescription = (score: number): string => {
-  if (score < 1.5) {
-    return "Conhecimento escasso, sem processos padronizados e dependência de esforços individuais.";
-  }
-  if (score < 2.5) {
-    return "Iniciativas isoladas, projetos executados intuitivamente e baixo nível de planejamento.";
-  }
-  if (score < 3.5) {
-    return "Processos padronizados, metodologia estabelecida e estrutura organizacional implementada.";
-  }
-  if (score < 4.5) {
-    return "Processos consolidados, alinhamento estratégico e indicadores de desempenho monitorados.";
-  }
-  return "Processos otimizados, melhoria contínua e foco no desenvolvimento das competências.";
-};
+  const getLevelDescription = (level: number, score: number): string => {
+    const descriptions: Record<number, string[]> = {
+      2: [
+        "Nível muito fraco. Quase nenhuma iniciativa da organização.",
+        "Iniciativas isoladas. Conhecimento introdutório de gerenciamento de projetos.",
+        "Algum avanço. Treinamentos básicos de gerenciamento para os principais envolvidos.",
+      ],
+      3: [
+        "Nível muito fraco. Não existe metodologia.",
+        "Metodologia desenvolvida, mas pouco utilizada.",
+        "Metodologia estabelecida e em uso, com informatização parcial.",
+      ],
+      4: [
+        "Nível muito fraco. Não existe acompanhamento formal.",
+        "Acompanhamento e controle parcial, em algumas áreas.",
+        "Acompanhamento e controle em todas as áreas, com métricas e melhorias.",
+      ],
+      5: [
+        "Nível muito fraco. Não existem iniciativas de otimização.",
+        "Algumas iniciativas isoladas de melhoria contínua.",
+        "Otimização plena, com uso de benchmarking e melhoria contínua.",
+      ],
+    };
 
-const ResultsSection: React.FC<ResultsSectionProps> = ({ scores, overallMaturity, totalPoints }) => {
+    if (score < 33) return descriptions[level][0];
+    if (score < 66) return descriptions[level][1];
+    return descriptions[level][2];
+  };
+
   const chartData = [
     { name: 'Nível 2', score: scores[2] },
     { name: 'Nível 3', score: scores[3] },
@@ -54,93 +69,112 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ scores, overallMaturity
     { name: 'Nível 5', score: scores[5] },
   ];
 
-  // Dados para o gráfico de perfil de aderência
-  const adherenceProfileData = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(value => {
-    return {
-      value,
-      nivel2: scores[2] >= value ? scores[2] : 0,
-      nivel3: scores[3] >= value ? scores[3] : 0,
-      nivel4: scores[4] >= value ? scores[4] : 0,
-      nivel5: scores[5] >= value ? scores[5] : 0,
-    };
-  });
-
   return (
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-bold">Resultados da Avaliação</CardTitle>
+          <CardTitle>Resultados da Avaliação de Maturidade</CardTitle>
+          <CardDescription>
+            Abaixo estão os resultados da sua autoavaliação de maturidade em gerenciamento de projetos, baseado no
+            modelo Prado-MMGP.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">Pontuação por Nível</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(scores).map(([level, score]) => (
-                <div key={level} className="bg-blue-50 p-4 rounded-lg text-center">
-                  <div className="text-sm text-gray-600">Nível {level}</div>
-                  <div className="text-2xl font-bold text-blue-600">{score.toFixed(0)} pontos</div>
-                </div>
-              ))}
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium mb-2">Índice de Maturidade Global</h3>
+              <div className="flex items-center gap-4">
+                <div className="text-3xl font-bold">{overallMaturity.toFixed(2)}</div>
+                <div className="text-lg">{getMaturityLevel(overallMaturity)}</div>
+              </div>
+              <div className="mt-2 bg-gray-50 p-2 rounded-lg text-sm">
+                <p className="text-gray-600">Cálculo: (100 + {totalPoints}) / 100 = {overallMaturity.toFixed(2)}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">Total de Pontos Obtidos</h3>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{totalPoints} pontos</div>
-            </div>
-          </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nível</TableHead>
+                  <TableHead>Pontuação</TableHead>
+                  <TableHead>Avaliação</TableHead>
+                  <TableHead className="hidden md:table-cell">Descrição</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">Nível 2 - Conhecido</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress value={scores[2]} className="w-20" />
+                      <span>{scores[2].toFixed(0)} pts</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{scores[2] < 33 ? "Fraco" : scores[2] < 66 ? "Regular" : "Bom"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{getLevelDescription(2, scores[2])}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Nível 3 - Padronizado</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress value={scores[3]} className="w-20" />
+                      <span>{scores[3].toFixed(0)} pts</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{scores[3] < 33 ? "Fraco" : scores[3] < 66 ? "Regular" : "Bom"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{getLevelDescription(3, scores[3])}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Nível 4 - Gerenciado</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress value={scores[4]} className="w-20" />
+                      <span>{scores[4].toFixed(0)} pts</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{scores[4] < 33 ? "Fraco" : scores[4] < 66 ? "Regular" : "Bom"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{getLevelDescription(4, scores[4])}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Nível 5 - Otimizado</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress value={scores[5]} className="w-20" />
+                      <span>{scores[5].toFixed(0)} pts</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{scores[5] < 33 ? "Fraco" : scores[5] < 66 ? "Regular" : "Bom"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{getLevelDescription(5, scores[5])}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4">Índice de Maturidade Global</h3>
-            <div className="flex flex-col items-center">
-              <div className="text-5xl font-bold text-blue-700">{overallMaturity.toFixed(1)}</div>
-              <div className="text-lg font-medium mt-2">{getMaturityLevel(overallMaturity)}</div>
+            <div className="p-4 bg-muted rounded-md">
+              <h3 className="text-lg font-medium mb-2">Interpretação do Resultado</h3>
+              <p className="text-sm">
+                {overallMaturity < 2
+                  ? "Nível Inicial (1-1.9): A organização está nos estágios iniciais de gerenciamento de projetos, com iniciativas isoladas e sem padronização. Recomenda-se investir em treinamentos básicos e conscientização sobre a importância do gerenciamento de projetos."
+                  : overallMaturity < 3
+                    ? "Nível Conhecido (2-2.9): A organização reconhece a importância do gerenciamento de projetos, mas ainda não possui uma metodologia consolidada. Recomenda-se formalizar processos e investir em capacitação mais avançada."
+                    : overallMaturity < 4
+                      ? "Nível Padronizado (3-3.9): A organização possui metodologia estabelecida, mas ainda há oportunidades de melhoria na implementação e no controle. Recomenda-se fortalecer o PMO e implementar métricas de desempenho."
+                      : overallMaturity < 5
+                        ? "Nível Gerenciado (4-4.9): A organização possui processos consolidados e alinhados à estratégia. Recomenda-se focar em otimização e melhoria contínua dos processos existentes."
+                        : "Nível Otimizado (5): A organização atingiu excelência em gerenciamento de projetos, com processos otimizados e cultura estabelecida. Recomenda-se manter o benchmark e a inovação contínua."}
+              </p>
             </div>
-            <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">Cálculo: (100 + {totalPoints}) / 100 = {overallMaturity.toFixed(1)}</p>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">Interpretação</h3>
-            <p className="text-gray-700">
-              {getMaturityDescription(overallMaturity)}
-            </p>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-bold">Perfil de Aderência</CardTitle>
+          <CardTitle>Gráfico de Pontuação por Nível</CardTitle>
+          <CardDescription>
+            Visualização das pontuações obtidas em cada nível de maturidade.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-80 mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={adherenceProfileData}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 40,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" domain={[0, 100]} />
-                <YAxis dataKey="value" type="category" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="nivel2" name="Nível 2" stackId="a" fill="#3f83f8" />
-                <Bar dataKey="nivel3" name="Nível 3" stackId="a" fill="#22c55e" />
-                <Bar dataKey="nivel4" name="Nível 4" stackId="a" fill="#eab308" />
-                <Bar dataKey="nivel5" name="Nível 5" stackId="a" fill="#ec4899" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

@@ -53,6 +53,9 @@ const LevelSection: React.FC<LevelSectionProps> = ({
     };
   };
 
+  // Check if this is level 5 (only A and E options)
+  const isLevel5 = level === 5;
+
   return (
     <Card>
       <CardHeader>
@@ -89,27 +92,33 @@ const LevelSection: React.FC<LevelSectionProps> = ({
                       {!hideScores && <span className="text-xs ml-1 text-blue-600">(10 pontos)</span>}
                     </Label>
                   </div>
-                  <div className="flex items-start space-x-2">
-                    <RadioGroupItem value="b" id={`q${question.id}-b`} className="mt-1" />
-                    <Label htmlFor={`q${question.id}-b`} className="flex-1">
-                      <span className="font-medium">b)</span> A situação existente é levemente inferior ao apresentado no item A.
-                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(7 pontos)</span>}
-                    </Label>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <RadioGroupItem value="c" id={`q${question.id}-c`} className="mt-1" />
-                    <Label htmlFor={`q${question.id}-c`} className="flex-1">
-                      <span className="font-medium">c)</span> A situação existente é significativamente inferior ao apresentado no item A.
-                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(4 pontos)</span>}
-                    </Label>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <RadioGroupItem value="d" id={`q${question.id}-d`} className="mt-1" />
-                    <Label htmlFor={`q${question.id}-d`} className="flex-1">
-                      <span className="font-medium">d)</span> Esforços foram iniciados neste sentido.
-                      {!hideScores && <span className="text-xs ml-1 text-blue-600">(2 pontos)</span>}
-                    </Label>
-                  </div>
+                  
+                  {!isLevel5 && (
+                    <>
+                      <div className="flex items-start space-x-2">
+                        <RadioGroupItem value="b" id={`q${question.id}-b`} className="mt-1" />
+                        <Label htmlFor={`q${question.id}-b`} className="flex-1">
+                          <span className="font-medium">b)</span> A situação existente é levemente inferior ao apresentado no item A.
+                          {!hideScores && <span className="text-xs ml-1 text-blue-600">(7 pontos)</span>}
+                        </Label>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <RadioGroupItem value="c" id={`q${question.id}-c`} className="mt-1" />
+                        <Label htmlFor={`q${question.id}-c`} className="flex-1">
+                          <span className="font-medium">c)</span> A situação existente é significativamente inferior ao apresentado no item A.
+                          {!hideScores && <span className="text-xs ml-1 text-blue-600">(4 pontos)</span>}
+                        </Label>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <RadioGroupItem value="d" id={`q${question.id}-d`} className="mt-1" />
+                        <Label htmlFor={`q${question.id}-d`} className="flex-1">
+                          <span className="font-medium">d)</span> Esforços foram iniciados neste sentido.
+                          {!hideScores && <span className="text-xs ml-1 text-blue-600">(2 pontos)</span>}
+                        </Label>
+                      </div>
+                    </>
+                  )}
+                  
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="e" id={`q${question.id}-e`} className="mt-1" />
                     <Label htmlFor={`q${question.id}-e`} className="flex-1">
